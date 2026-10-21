@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+*.egg-info/
+build/
+dist/
+
+# Local data – never commit (personal results, copyrighted questions)
+data/*
+!data/.gitkeep
+questions/*
+!questions/.gitkeep
+
+# Env / editors / OS
+.env
+.vscode/
+.idea/
+.DS_Store

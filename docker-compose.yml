@@ -1,0 +1,11 @@
+services:
+  quizbank:
+    build: .
+    image: ghcr.io/lordspiegelei/quizbank:latest
+    # Bound to localhost only: the app has no login.
+    ports:
+      - "127.0.0.1:8000:8000"
+    volumes:
+      - ./data:/data
+      - ./questions:/questions
+    restart: unless-stopped
