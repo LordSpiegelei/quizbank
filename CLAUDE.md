@@ -186,7 +186,8 @@ quizbank/
 │   ├── workflows/ci.yml       # ruff + pytest
 │   ├── workflows/docker.yml   # Image bauen; bei Tag v* → GHCR (amd64+arm64)
 │   └── dependabot.yml
-├── alembic/               # Migrationen
+├── alembic.ini
+├── migrations/            # Alembic-Migrationen (nicht `alembic/`, sonst Namenskonflikt mit dem Paket)
 ├── app/
 │   ├── main.py            # FastAPI-App, Router einbinden
 │   ├── db.py              # Engine, Session, init
@@ -215,6 +216,7 @@ quizbank/
 - Code, Bezeichner und Commits auf Englisch; README zweisprachig oder Englisch (für das Teilen)
 - Conventional Commits (`feat:`, `fix:`, `docs:` …)
 - Bewertungslogik in `scoring.py` als reine Funktionen, mit Unit-Tests
+- Nach jedem abgeschlossenen Feature bzw. größeren Code-Änderung den Skill `/simplify` auf die Änderungen ausführen (vor dem Commit), danach Tests und ruff erneut laufen lassen
 - Keine Fragen zu kopiergeschützten Kursmaterialien committen: **`questions/` und `data/` stehen in `.gitignore`**
 - Konfiguration über Umgebungsvariablen: `DB_PATH` (Default `./data/quizbank.db`), `PORT` (Default `8000`), `QUESTIONS_DIR` (Default `./questions`), `AUTO_IMPORT` (Default `true`), `APP_LANG` (Default `de`)
 
