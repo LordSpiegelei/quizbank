@@ -59,6 +59,17 @@ Die App soll später **öffentlich auf GitHub geteilt** werden. Andere bringen i
 - **Auto-Import**: alle `*.json` in `QUESTIONS_DIR` (Default `./questions`) werden beim Start importiert (idempotent); abschaltbar über `AUTO_IMPORT=false`
 - UI-Texte in `app/locales/de.py` (Dict mit Keys); Sprache über Env `APP_LANG` (Default `de`), damit `en.py` später einfach ergänzt werden kann
 
+### Befehle
+```bash
+uv sync --locked                          # install deps incl. dev
+uv run uvicorn app.main:app --reload      # dev server on :8000
+uv run pytest                             # tests
+uv run ruff check . && uv run ruff format --check .   # what CI runs
+docker compose up --build                 # container; binds 127.0.0.1 only (no login)
+```
+- Docker uses `/data` and `/questions` (env set in Dockerfile); locally the defaults are `./data`, `./questions`
+- `[tool.uv] package = false`: app is not installed as a package; pytest finds it via `pythonpath = ["."]`
+
 ## 5. Import-Format (JSON)
 
 Eine Datei = eine Probeklausur. Schema wird als Pydantic-Modell implementiert und als `schema/exam.schema.json` exportiert (für Claude und für andere Nutzer).
@@ -125,7 +136,7 @@ Eine Datei = eine Probeklausur. Schema wird als Pydantic-Modell implementiert un
 ## 7. Features nach Phasen
 
 ### Phase 1 – MVP (Ziel: in 1–2 Sessions nutzbar)
-- [ ] Projektgerüst, Docker, Healthcheck
+- [x] Projektgerüst, Docker, Healthcheck
 - [ ] JSON-Upload im Browser + Validierung + Import (Duplikaterkennung über `id`)
 - [ ] Übersicht: Kurse → Probeklausuren (Anzahl Fragen, letztes Ergebnis)
 - [ ] Quiz durchführen (eine Frage pro Seite, Navigation vor/zurück)
@@ -200,7 +211,7 @@ quizbank/
 
 ## 9. Konventionen
 
-- **UI-Texte auf Deutsch**, zentral in `app/texts.py` (bzw. einer Übersetzungsdatei), nicht verstreut in Templates
+- **UI-Texte auf Deutsch**, zentral in `app/locales/de.py`, nicht verstreut in Templates
 - Code, Bezeichner und Commits auf Englisch; README zweisprachig oder Englisch (für das Teilen)
 - Conventional Commits (`feat:`, `fix:`, `docs:` …)
 - Bewertungslogik in `scoring.py` als reine Funktionen, mit Unit-Tests
@@ -233,3 +244,14 @@ quizbank/
 - [x] Historie → **alle** Versuche behalten, manuelles Löschen möglich
 - [x] Sprache → Deutsch jetzt, Struktur EN-fähig (`app/locales/`)
 - [x] Migrationen → Alembic ab Start
+
+## graphify
+
+This project has a knowledge graph at graphify-out/ with god nodes, community structure, and cross-file relationships.
+
+Rules:
+- When graphify-out/graph.json exists, run `graphify query "<question>"` before your first grep, search or source-file read for a codebase question, and put this rule in every subagent prompt that explores code. Read raw files only for lines the graph or an earlier read already located. Use `graphify path "<A>" "<B>"` for relationships and `graphify explain "<concept>"` for focused concepts. These return a scoped subgraph, usually much smaller than GRAPH_REPORT.md or raw grep output.
+- If graphify-out/wiki/index.md exists, use it for broad navigation instead of raw source browsing.
+- Read graphify-out/GRAPH_REPORT.md only for broad architecture review or when query/path/explain do not surface enough context.
+- After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost).
+- graphify-out/ is gitignored (local only); don't commit it.
