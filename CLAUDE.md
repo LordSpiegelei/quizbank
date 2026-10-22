@@ -64,6 +64,7 @@ Die App soll später **öffentlich auf GitHub geteilt** werden. Andere bringen i
 uv sync --locked                          # install deps incl. dev
 uv run uvicorn app.main:app --reload      # dev server on :8000
 uv run pytest                             # tests
+uv run python -m app.schemas              # regenerate schema/exam.schema.json (test fails if stale)
 uv run ruff check . && uv run ruff format --check .   # what CI runs
 docker compose up --build                 # container; binds 127.0.0.1 only (no login)
 ```
