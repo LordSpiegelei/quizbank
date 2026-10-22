@@ -16,6 +16,9 @@ data/*
 questions/*
 !questions/.gitkeep
 
+# graphify knowledge graph (generated)
+graphify-out/
+
 # Env / editors / OS
 .env
 .vscode/
