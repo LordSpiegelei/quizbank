@@ -225,9 +225,10 @@ quizbank/
 
 - `single`: richtig = volle Punkte, sonst 0
 - `multiple`: Default alles-oder-nichts; über optionales Feld `multiple_scoring` (`all_or_nothing` | `partial`) auf Klausurebene im JSON umschaltbar
-- `open`: Summe der selbst vergebenen Raster-Punkte (max. `points`)
+  - `partial`: `points × max(0, richtige Kreuze − falsche Kreuze) / Anzahl richtiger Optionen`
+- `open`: Summe der selbst vergebenen Raster-Punkte (auf 0…`points` begrenzt); gilt als richtig bei voller Punktzahl, ohne Selbstbewertung `is_correct = None`
 - Kein Punktabzug für falsche Antworten (Default)
-- `passed = score >= pass_mark`
+- `passed = score >= pass_mark`; solange eine `open`-Frage noch nicht selbst bewertet ist, bleibt `passed` leer (`None`)
 
 ## 11. Generierungs-Prompt (Entwurf für Claude)
 

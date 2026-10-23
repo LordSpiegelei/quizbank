@@ -2,7 +2,9 @@ from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy import JSON, UniqueConstraint
-from sqlmodel import Field, Relationship, SQLModel
+from sqlmodel import AutoString, Field, Relationship, SQLModel
+
+from app.schemas import MultipleScoring
 
 
 def utcnow() -> datetime:
@@ -36,7 +38,7 @@ class Exam(SQLModel, table=True):
     title: str
     time_limit_minutes: int | None = None
     pass_mark: float | None = None
-    multiple_scoring: str = "all_or_nothing"
+    multiple_scoring: MultipleScoring = Field(default="all_or_nothing", sa_type=AutoString)
     source_file: str | None = None
     imported_at: datetime = Field(default_factory=utcnow)
 

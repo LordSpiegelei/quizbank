@@ -1,0 +1,95 @@
+from types import SimpleNamespace
+
+import pytest
+
+from app.scoring import AnswerScore, ExamScore, score_open, score_question, summarize
+
+
+def question(type: str = "single", correct=(1,), points: float = 1) -> SimpleNamespace:
+    return SimpleNamespace(type=type, correct=list(correct), points=points)
+
+
+@pytest.mark.parametrize("mode", ["all_or_nothing", "partial"])
+@pytest.mark.parametrize(
+    ("selected", "score", "is_correct"),
+    [([1], 1, True), ([0], 0, False), ([], 0, False), (None, 0, False), ([0, 1], 0, False)],
+)
+def test_single(selected, score, is_correct, mode) -> None:
+    result = score_question(question(), selected, multiple_scoring=mode)
+    assert result == AnswerScore(score, 1, is_correct)
+
+
+@pytest.mark.parametrize(
+    ("selected", "expected"),
+    [
+        ([0, 2], AnswerScore(2, 2, True)),
+        ([2, 0], AnswerScore(2, 2, True)),  # order does not matter
+        ([0], AnswerScore(0, 2, False)),
+        ([0, 2, 3], AnswerScore(0, 2, False)),
+        (None, AnswerScore(0, 2, False)),
+    ],
+)
+def test_multiple_all_or_nothing(selected, expected) -> None:
+    assert score_question(question("multiple", (0, 2), points=2), selected) == expected
+
+
+@pytest.mark.parametrize(
+    ("correct", "points", "selected", "score"),
+    [
+        ((0, 2), 2, [0, 2], 2),  # all correct
+        ((0, 2), 2, [0], 1),  # one of two correct picks
+        ((0, 2), 2, [0, 3], 0),  # wrong pick cancels the correct one
+        ((0, 2), 2, [0, 2, 3], 1),
+        ((0, 2), 2, [1, 3], 0),  # never negative
+        ((0, 2), 2, [], 0),
+        ((0, 1, 2), 3, [0, 1], 2),
+        ((0, 1, 2), 1, [0], pytest.approx(1 / 3)),
+    ],
+)
+def test_multiple_partial(correct, points, selected, score) -> None:
+    result = score_question(
+        question("multiple", correct, points), selected, multiple_scoring="partial"
+    )
+    assert result.score == score
+    assert result.max_score == points
+    assert result.is_correct is (set(selected) == set(correct))
+
+
+@pytest.mark.parametrize(
+    ("self_score", "expected"),
+    [
+        (None, AnswerScore(0, 10, None)),
+        (0, AnswerScore(0, 10, False)),
+        (6, AnswerScore(6, 10, False)),
+        (10, AnswerScore(10, 10, True)),
+        (12, AnswerScore(10, 10, True)),  # capped at the question's points
+        (-1, AnswerScore(0, 10, False)),
+    ],
+)
+def test_open(self_score, expected) -> None:
+    assert score_open(10, self_score) == expected
+    assert score_question(question("open", (), points=10), self_score=self_score) == expected
+
+
+@pytest.mark.parametrize(
+    ("pass_mark", "passed"),
+    [(30, True), (30.5, False), (None, None), (0, True)],
+)
+def test_summarize_pass_mark(pass_mark, passed) -> None:
+    results = [AnswerScore(1, 1, True)] * 30 + [AnswerScore(0, 1, False)] * 30
+    assert summarize(results, pass_mark) == ExamScore(30, 60, passed)
+
+
+def test_summarize_pending_open_question() -> None:
+    results = [AnswerScore(5, 5, True), AnswerScore(0, 10, None)]
+    assert summarize(results, pass_mark=3) == ExamScore(5, 15, None)
+
+
+def test_summarize_rounds_float_noise() -> None:
+    result = summarize([AnswerScore(0.1, 1, False), AnswerScore(0.2, 1, False)], pass_mark=0.3)
+    assert result.score == 0.3
+    assert result.passed is True
+
+
+def test_summarize_empty() -> None:
+    assert summarize([], pass_mark=1) == ExamScore(0, 0, False)
