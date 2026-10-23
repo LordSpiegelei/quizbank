@@ -22,6 +22,7 @@ SCHEMA_PATH = Path(__file__).resolve().parent.parent / "schema" / "exam.schema.j
 MIN_OPTIONS, MAX_OPTIONS = 2, 10
 
 NonEmptyStr = Annotated[str, Field(min_length=1)]
+MultipleScoring = Literal["all_or_nothing", "partial"]
 
 
 class _Strict(BaseModel):
@@ -124,7 +125,7 @@ class ExamFile(_Strict):
     title: NonEmptyStr
     time_limit_minutes: int | None = Field(default=None, gt=0)
     pass_mark: float | None = Field(default=None, ge=0)
-    multiple_scoring: Literal["all_or_nothing", "partial"] = "all_or_nothing"
+    multiple_scoring: MultipleScoring = "all_or_nothing"
     questions: list[QuestionIn] = Field(min_length=1)
 
     @field_validator("questions")
