@@ -1,7 +1,9 @@
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy import Engine
 from sqlmodel import Session
 from starlette.concurrency import run_in_threadpool
@@ -9,6 +11,11 @@ from starlette.concurrency import run_in_threadpool
 from app.config import Settings
 from app.db import make_engine, run_migrations
 from app.importer import import_directory
+from app.locales import get_translator
+from app.routes import courses, exams
+from app.templating import make_templates
+
+STATIC_DIR = Path(__file__).resolve().parent / "static"
 
 
 def _prepare_database(settings: Settings) -> Engine:
@@ -32,6 +39,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app = FastAPI(title="quizbank", lifespan=lifespan)
     app.state.settings = settings
+    app.state.t = get_translator(settings.app_lang)
+    app.state.templates = make_templates(app.state.t)
+    app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+    app.include_router(courses.router)
+    app.include_router(exams.router)
 
     @app.get("/health")
     def health() -> dict[str, str]:

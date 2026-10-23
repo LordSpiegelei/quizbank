@@ -1,0 +1,34 @@
+{% macro attempt_result(attempt) -%}
+  {% if attempt %}
+    {{ attempt.score | num }} / {{ attempt.max_score | num }}
+    {% if attempt.passed is not none %}
+      <mark class="{{ 'passed' if attempt.passed else 'failed' }}">
+        {{ t("result.passed") if attempt.passed else t("result.failed") }}
+      </mark>
+    {% endif %}
+  {%- else -%}
+    {{ t("common.none") }}
+  {%- endif %}
+{%- endmacro %}
+
+{# Effective value plus a hint when it falls back to the course default. #}
+{% macro _with_default(own, effective, text) -%}
+  {% if effective is none %}{{ t("common.none") }}{% else %}{{ text }}
+    {%- if own is none %} <small>{{ t("exam.from_course_default") }}</small>{% endif %}
+  {%- endif %}
+{%- endmacro %}
+
+{% macro time_limit(exam) -%}
+  {{ _with_default(exam.time_limit_minutes, exam.effective_time_limit, t("common.minutes", n=exam.effective_time_limit)) }}
+{%- endmacro %}
+
+{% macro pass_mark(exam) -%}
+  {{ _with_default(exam.pass_mark, exam.effective_pass_mark, t("common.points", n=exam.effective_pass_mark | num)) }}
+{%- endmacro %}
+
+{% macro delete_form(action, label, confirm_text) -%}
+  <form method="post" action="{{ action }}" data-confirm="{{ confirm_text }}"
+        onsubmit="return confirm(this.dataset.confirm)">
+    <button type="submit" class="secondary outline danger">{{ label }}</button>
+  </form>
+{%- endmacro %}

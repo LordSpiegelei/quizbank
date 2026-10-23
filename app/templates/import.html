@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}{{ t("import.title") }} – {{ super() }}{% endblock %}
+{% block content %}
+<h1>{{ t("import.title") }}</h1>
+<p>{{ t("import.hint") }}</p>
+
+<form method="post" action="{{ path('import_upload') }}" enctype="multipart/form-data">
+  <label>{{ t("import.files") }}
+    <input type="file" name="files" accept=".json,application/json" multiple required>
+  </label>
+  <button type="submit">{{ t("import.submit") }}</button>
+</form>
+
+{% if outcomes %}
+<section>
+  <h2>{{ t("import.results") }}</h2>
+  {% for o in outcomes %}
+  <article class="{{ 'error' if o.errors else 'success' }}">
+    <header><code>{{ o.filename }}</code></header>
+    {% if o.errors %}
+      <p>{{ t("import.failed") }}</p>
+      <ul class="errors">{% for line in o.errors %}<li><code>{{ line }}</code></li>{% endfor %}</ul>
+    {% else %}
+      {% set r = o.result %}
+      <p>
+        {% if r.changed %}
+          {{ t("import.ok", course=o.exam_file.course, title=o.exam_file.title, created=r.created, updated=r.updated, removed=r.removed) }}
+        {% else %}
+          {{ t("import.unchanged", course=o.exam_file.course, title=o.exam_file.title) }}
+        {% endif %}
+        <a href="{{ path('exam_detail', exam_id=r.exam_id) }}">→</a>
+      </p>
+    {% endif %}
+  </article>
+  {% endfor %}
+</section>
+{% endif %}
+{% endblock %}

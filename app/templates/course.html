@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% from "_macros.html" import attempt_result, delete_form, pass_mark, time_limit %}
+{% block title %}{{ course.name }} – {{ super() }}{% endblock %}
+{% block content %}
+<nav aria-label="breadcrumb">
+  <ul>
+    <li><a href="{{ path('course_list') }}">{{ t("nav.courses") }}</a></li>
+    <li>{{ course.name }}</li>
+  </ul>
+</nav>
+<h1>{{ course.name }}</h1>
+
+<h2>{{ t("course.exams") }}</h2>
+{% if exams %}
+<div class="overflow-auto">
+<table class="striped">
+  <thead>
+    <tr>
+      <th>{{ t("course.exams") }}</th>
+      <th class="num">{{ t("course.questions") }}</th>
+      <th class="num">{{ t("course.time_limit") }}</th>
+      <th class="num">{{ t("course.pass_mark") }}</th>
+      <th>{{ t("course.last_result") }}</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for exam in exams %}
+    <tr>
+      <td><a href="{{ path('exam_detail', exam_id=exam.id) }}">{{ exam.title }}</a></td>
+      <td class="num">{{ question_counts.get(exam.id, 0) }}</td>
+      <td class="num">{{ time_limit(exam) }}</td>
+      <td class="num">{{ pass_mark(exam) }}</td>
+      <td>{{ attempt_result(last_attempts.get(exam.id)) }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+{% else %}
+<p>{{ t("course.no_exams") }}</p>
+{% endif %}
+
+<details {{ "open" if error or saved }}>
+  <summary>{{ t("course.settings") }}</summary>
+  {% if saved %}<p class="notice success">{{ t("course.saved") }}</p>{% endif %}
+  <form method="post" action="{{ path('update_course', course_id=course.id) }}">
+    <label>{{ t("course.name") }}
+      <input name="name" value="{{ course.name }}" required>
+    </label>
+    <div class="grid">
+      <label>{{ t("course.default_time_limit") }}
+        <input name="default_time_limit" type="number" min="1" step="1"
+               value="{{ course.default_time_limit | num }}">
+      </label>
+      <label>{{ t("course.default_pass_mark") }}
+        <input name="default_pass_mark" inputmode="decimal"
+               value="{{ course.default_pass_mark | num }}">
+      </label>
+    </div>
+    <small>{{ t("course.defaults_hint") }}</small>
+    <button type="submit">{{ t("common.save") }}</button>
+  </form>
+  {{ delete_form(path('delete_course', course_id=course.id), t("course.delete"), t("course.delete_confirm", name=course.name)) }}
+</details>
+{% endblock %}
