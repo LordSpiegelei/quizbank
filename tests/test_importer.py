@@ -5,15 +5,12 @@ from dataclasses import replace
 from fastapi.testclient import TestClient
 from sqlmodel import Session, select
 
-from app.importer import import_directory, import_exam
+from app.importer import import_directory
 from app.main import create_app
 from app.models import Answer, Attempt, Course, Exam, Question
-from app.schemas import parse_exam
-from tests.factories import EXAMPLE, exam, open_q, single
+from tests.factories import EXAMPLE, import_file, open_q, single
 
-
-def _import(session, *questions, **overrides):
-    return import_exam(session, parse_exam(exam(*questions, **overrides)))
+_import = import_file
 
 
 def test_creates_course_exam_and_questions(session) -> None:
@@ -65,19 +62,23 @@ def test_type_change_clears_unused_columns(session) -> None:
     assert question.option_explanations is None
 
 
-def test_questions_missing_from_file_are_deleted_with_answers(session) -> None:
+def test_questions_missing_from_file_are_deleted_answers_keep_snapshot(session) -> None:
     result = _import(session, single(), single(id="q2"))
     q2 = session.exec(select(Question).where(Question.external_id == "q2")).one()
     attempt = Attempt(exam_id=result.exam_id)
     session.add(attempt)
     session.flush()
-    session.add(Answer(attempt_id=attempt.id, question_id=q2.id, selected=[1]))
+    session.add(
+        Answer(attempt_id=attempt.id, question_id=q2.id, snapshot={"type": "single"}, selected=[1])
+    )
     session.commit()
 
     result = _import(session, single())
     assert result.removed == 1
     assert [q.external_id for q in session.exec(select(Question))] == ["q1"]
-    assert session.exec(select(Answer)).all() == []
+    answer = session.exec(select(Answer)).one()
+    assert answer.question_id is None
+    assert answer.snapshot == {"type": "single"}
     assert session.get(Attempt, attempt.id) is not None
 
 

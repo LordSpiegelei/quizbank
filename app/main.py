@@ -12,7 +12,7 @@ from app.config import Settings
 from app.db import make_engine, run_migrations
 from app.importer import import_directory
 from app.locales import get_translator
-from app.routes import courses, exams
+from app.routes import attempts, courses, exams
 from app.templating import make_templates
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
@@ -44,6 +44,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
     app.include_router(courses.router)
     app.include_router(exams.router)
+    app.include_router(attempts.router)
 
     @app.get("/health")
     def health() -> dict[str, str]:

@@ -3,11 +3,12 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from jinja2 import pass_context
 
 from app.locales import Translator
+from app.markdown import render_markdown, render_markdown_inline
 
 TEMPLATE_DIR = Path(__file__).resolve().parent / "templates"
 
@@ -24,6 +25,14 @@ def make_templates(t: Translator) -> Jinja2Templates:
     def format_datetime(value: datetime | None) -> str:
         return "" if value is None else value.astimezone().strftime(datetime_format)
 
+    def format_duration(seconds: int | None) -> str:
+        """3725 -> "1:02:05", 125 -> "2:05"."""
+        if seconds is None:
+            return ""
+        hours, rest = divmod(seconds, 3600)
+        minutes, secs = divmod(rest, 60)
+        return f"{hours}:{minutes:02}:{secs:02}" if hours else f"{minutes}:{secs:02}"
+
     @pass_context
     def path(context: dict[str, Any], name: str, **params: Any) -> str:
         """Relative URL path of a named route (url_for would build absolute URLs)."""
@@ -33,7 +42,15 @@ def make_templates(t: Translator) -> Jinja2Templates:
     templates.env.globals["path"] = path
     templates.env.filters["num"] = format_number
     templates.env.filters["dt"] = format_datetime
+    templates.env.filters["duration"] = format_duration
+    templates.env.filters["md"] = render_markdown
+    templates.env.filters["md_inline"] = render_markdown_inline
     return templates
+
+
+def redirect(request: Request, name: str, **params: Any) -> RedirectResponse:
+    """303 See Other to a named route, the answer to a successful form POST."""
+    return RedirectResponse(request.app.url_path_for(name, **params), status_code=303)
 
 
 def render(request: Request, name: str, status_code: int = 200, **context: Any) -> HTMLResponse:

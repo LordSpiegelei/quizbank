@@ -1,19 +1,11 @@
 from datetime import UTC, datetime
 
-from sqlmodel import Session, select
+from sqlmodel import select
 
 from app.models import Attempt, Course, Exam, Question
 from tests.factories import EXAMPLE, exam, single
-
-
-def _upload(client, *files: tuple[str, bytes | str]):
-    return client.post(
-        "/import", files=[("files", (name, content, "application/json")) for name, content in files]
-    )
-
-
-def _db(client) -> Session:
-    return Session(client.app.state.engine)
+from tests.factories import db as _db
+from tests.factories import upload as _upload
 
 
 def test_empty_course_list(client) -> None:

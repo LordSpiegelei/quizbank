@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_macros.html" import attempt_result, delete_form, pass_mark, time_limit %}
+{% from "_macros.html" import attempt_result, confirm_form, pass_mark, time_limit %}
 {% block title %}{{ course.name }} – {{ super() }}{% endblock %}
 {% block content %}
 <nav aria-label="breadcrumb">
@@ -60,6 +60,6 @@
     <small>{{ t("course.defaults_hint") }}</small>
     <button type="submit">{{ t("common.save") }}</button>
   </form>
-  {{ delete_form(path('delete_course', course_id=course.id), t("course.delete"), t("course.delete_confirm", name=course.name)) }}
+  {{ confirm_form(path('delete_course', course_id=course.id), t("course.delete"), t("course.delete_confirm", name=course.name)) }}
 </details>
 {% endblock %}

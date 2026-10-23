@@ -2,7 +2,14 @@ from types import SimpleNamespace
 
 import pytest
 
-from app.scoring import AnswerScore, ExamScore, score_open, score_question, summarize
+from app.scoring import (
+    AnswerScore,
+    ExamScore,
+    score_open,
+    score_question,
+    summarize,
+    update_pool,
+)
 
 
 def question(type: str = "single", correct=(1,), points: float = 1) -> SimpleNamespace:
@@ -93,3 +100,17 @@ def test_summarize_rounds_float_noise() -> None:
 
 def test_summarize_empty() -> None:
     assert summarize([], pass_mark=1) == ExamScore(0, 0, False)
+
+
+@pytest.mark.parametrize(
+    ("in_pool", "streak", "is_correct", "expected"),
+    [
+        (False, 0, False, (True, 0)),  # wrong: into the pool
+        (True, 1, False, (True, 0)),  # wrong again: streak resets
+        (True, 0, True, (True, 1)),  # first correct answer: stays in the pool
+        (True, 1, True, (False, 0)),  # second in a row: out
+        (False, 0, True, (False, 0)),  # correct outside the pool: nothing changes
+    ],
+)
+def test_update_pool(in_pool, streak, is_correct, expected) -> None:
+    assert update_pool(in_pool, streak, is_correct) == expected

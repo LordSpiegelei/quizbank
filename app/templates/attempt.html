@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}{{ attempt.exam.title }} – {{ super() }}{% endblock %}
+{% block head %}
+<script defer src="{{ url_for('static', path='quiz.js') }}"></script>
+<script defer src="{{ url_for('static', path='vendor/alpine.min.js') }}"></script>
+{% endblock %}
+{% block content %}
+<script type="application/json" id="quiz-data">{{ quiz | tojson }}</script>
+<noscript><p class="notice error">{{ t("quiz.no_js") }}</p></noscript>
+<form id="finish-form" method="post" action="{{ path('finish_attempt', attempt_id=attempt.id) }}"></form>
+
+<div x-data="quiz" x-cloak>
+  <div class="quiz-bar">
+    <strong>{{ attempt.exam.title }}</strong>
+    <span>{{ t("quiz.question") }} <span x-text="index + 1"></span> {{ t("quiz.of") }} <span x-text="questions.length"></span></span>
+    <span class="timer" x-show="remaining !== null" :class="{ low: remaining < 300 }">
+      {{ t("quiz.time_left") }} <strong x-text="clock"></strong>
+    </span>
+  </div>
+
+  <article>
+    <header>
+      <small><span x-text="current.topic"></span> · <span x-text="current.points"></span> {{ t("quiz.points") }}</small>
+    </header>
+    <div class="scenario" x-show="current.scenario" x-html="current.scenario"></div>
+    <div x-html="current.question"></div>
+
+    <template x-if="current.type !== 'open'">
+      <fieldset>
+        <p x-show="current.type === 'multiple'"><small>{{ t("quiz.multiple_hint") }}</small></p>
+        <template x-for="(option, i) in current.options" :key="current.id + '-' + i">
+          <label class="option">
+            <input :type="current.type === 'single' ? 'radio' : 'checkbox'" :name="'q' + current.id"
+                   :checked="current.selected.includes(i)" @change="toggle(i)">
+            <span class="letter" x-text="letter(i)"></span>
+            <span x-html="option"></span>
+          </label>
+        </template>
+      </fieldset>
+    </template>
+
+    <template x-if="current.type === 'open'">
+      <textarea rows="10" placeholder="{{ t('quiz.text_placeholder') }}"
+                x-model="current.text_answer" @input="queueText(current)" @blur="saveText(current)"></textarea>
+    </template>
+  </article>
+
+  <div class="quiz-nav">
+    <button class="secondary" @click="go(index - 1)" :disabled="index === 0">{{ t("quiz.prev") }}</button>
+    <small class="save-status" x-text="status" aria-live="polite"></small>
+    <button x-show="index < questions.length - 1" @click="go(index + 1)">{{ t("quiz.next") }}</button>
+    <button x-show="index === questions.length - 1" @click="submit()">{{ t("quiz.finish") }}</button>
+  </div>
+
+  <details>
+    <summary>{{ t("quiz.overview") }}</summary>
+    <div class="question-grid">
+      <template x-for="(q, i) in questions" :key="q.id">
+        <button class="outline" :class="{ answered: isAnswered(q), current: i === index }"
+                @click="go(i)" x-text="i + 1"></button>
+      </template>
+    </div>
+    <button @click="submit()">{{ t("quiz.finish") }}</button>
+  </details>
+</div>
+{% endblock %}

@@ -7,7 +7,7 @@ from sqlmodel import Session, col, func, select
 from app.db import SessionDep, get_or_404
 from app.models import Attempt, Course, Exam, Question
 from app.queries import last_finished_attempts
-from app.templating import render
+from app.templating import redirect, render
 
 router = APIRouter()
 
@@ -84,9 +84,7 @@ def create_course(request: Request, session: SessionDep, name: Annotated[str, Fo
         return _list_page(request, session, status_code=400, error=error, new_name=name)
     session.add(course)
     session.commit()
-    return RedirectResponse(
-        request.app.url_path_for("course_detail", course_id=course.id), status_code=303
-    )
+    return redirect(request, "course_detail", course_id=course.id)
 
 
 def _course_page(request: Request, session: Session, course: Course, **extra) -> HTMLResponse:
@@ -146,4 +144,4 @@ def update_course(
 def delete_course(request: Request, session: SessionDep, course_id: int):
     session.delete(get_or_404(session, Course, course_id))
     session.commit()
-    return RedirectResponse(request.app.url_path_for("course_list"), status_code=303)
+    return redirect(request, "course_list")

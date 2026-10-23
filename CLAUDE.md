@@ -166,10 +166,10 @@ Eine Datei = eine Probeklausur. Schema wird als Pydantic-Modell implementiert un
 - [x] Projektgerüst, Docker, Healthcheck
 - [x] JSON-Upload im Browser + Validierung + Import (Duplikaterkennung über `id`)
 - [x] Übersicht: Kurse → Probeklausuren (Anzahl Fragen, letztes Ergebnis)
-- [ ] Attempts-PR: komplettes Schema aus §6 in einer Migration; nur Klausurmodus mit allen Fragen und Auswertung am Ende, Countdown mit Auto-Abgabe (falls Limit gesetzt), Fortsetzen/Verwerfen, Antworten per JSON-`PUT` aus Alpine. `open` nur Textfeld + Musterlösung/Raster in der Auswertung, `passed` bleibt `None` bis Phase 3
-- [ ] Quiz durchführen (eine Frage pro Seite, Navigation vor/zurück)
-- [ ] Auswertung am Ende: Punkte, richtig/falsch, **Erklärung zur richtigen Lösung**, Erklärung pro Option, **Quelle**
-- [ ] **Ergebnis-Historie pro Quiz** (Versuche speichern und auflisten)
+- [x] Attempts-PR: komplettes Schema aus §6 in einer Migration; nur Klausurmodus mit allen Fragen und Auswertung am Ende, Countdown mit Auto-Abgabe (falls Limit gesetzt), Fortsetzen/Verwerfen, Antworten per JSON-`PUT` aus Alpine. `open` nur Textfeld + Musterlösung/Raster in der Auswertung, `passed` bleibt `None` bis Phase 3
+- [x] Quiz durchführen (eine Frage pro Seite, Navigation vor/zurück)
+- [x] Auswertung am Ende: Punkte, richtig/falsch, **Erklärung zur richtigen Lösung**, Erklärung pro Option, **Quelle**
+- [x] **Ergebnis-Historie pro Quiz** (Versuche speichern und auflisten)
 
 ### Phase 2 – Lernfunktionen (Funktionsumfang wie quiz-prep)
 - [ ] Start-Dialog: Quiz wählen, **Filter nach Thema/Tags**, Fragenanzahl, Timer an/aus

@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_macros.html" import delete_form, pass_mark, time_limit %}
+{% from "_macros.html" import attempt_result, confirm_form, pass_mark, time_limit %}
 {% block title %}{{ exam.title }} – {{ super() }}{% endblock %}
 {% block content %}
 <nav aria-label="breadcrumb">
@@ -21,5 +21,50 @@
   {% if exam.source_file %}<dt>{{ t("exam.source_file") }}</dt><dd><code>{{ exam.source_file }}</code></dd>{% endif %}
 </dl>
 
-{{ delete_form(path('delete_exam', exam_id=exam.id), t("exam.delete"), t("exam.delete_confirm", title=exam.title)) }}
+<section>
+  {% if open_attempt %}
+    <p>{{ t("exam.open_attempt", started=open_attempt.started_at | dt) }}</p>
+    <div class="actions">
+      <a role="button" href="{{ path('attempt_page', attempt_id=open_attempt.id) }}">{{ t("exam.resume") }}</a>
+      {{ confirm_form(path('restart_attempt', attempt_id=open_attempt.id), t("exam.restart"), t("exam.restart_confirm"), "secondary outline") }}
+    </div>
+  {% else %}
+    <form method="post" action="{{ path('start_attempt', exam_id=exam.id) }}">
+      <button type="submit">{{ t("exam.start") }}</button>
+    </form>
+  {% endif %}
+</section>
+
+<h2>{{ t("history.title") }}</h2>
+{% if history %}
+<div class="overflow-auto">
+<table class="striped">
+  <thead>
+    <tr>
+      <th>{{ t("history.date") }}</th>
+      <th>{{ t("history.mode") }}</th>
+      <th>{{ t("history.score") }}</th>
+      <th class="num">{{ t("history.duration") }}</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for attempt in history %}
+    <tr>
+      <td><a href="{{ path('attempt_review', attempt_id=attempt.id) }}">{{ attempt.finished_at | dt }}</a></td>
+      <td>{{ t("mode." ~ attempt.mode) }}</td>
+      <td>{{ attempt_result(attempt) }}</td>
+      <td class="num">{{ attempt.duration_seconds | duration }}</td>
+      <td>{{ confirm_form(path('delete_attempt', attempt_id=attempt.id), t("history.delete"), t("history.delete_confirm")) }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+{% else %}
+<p>{{ t("history.empty") }}</p>
+{% endif %}
+
+<hr>
+{{ confirm_form(path('delete_exam', exam_id=exam.id), t("exam.delete"), t("exam.delete_confirm", title=exam.title)) }}
 {% endblock %}

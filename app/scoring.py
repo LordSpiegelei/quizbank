@@ -70,6 +70,19 @@ def score_question(
     return score_choice(question.correct, selected, question.points, multiple_scoring)
 
 
+POOL_EXIT_STREAK = 2  # correct answers in a row that take a question out of the wrong pool
+
+
+def update_pool(in_pool: bool, streak: int, is_correct: bool) -> tuple[bool, int]:
+    """Wrong-pool state after one answer: wrong (or unanswered) puts the question in the pool
+    and resets its streak; correct answers count up until POOL_EXIT_STREAK removes it."""
+    if not is_correct:
+        return True, 0
+    if not in_pool or streak + 1 >= POOL_EXIT_STREAK:
+        return False, 0
+    return True, streak + 1
+
+
 def summarize(results: Iterable[AnswerScore], pass_mark: float | None) -> ExamScore:
     """Totals of an attempt; passed means score >= pass_mark."""
     score = max_score = 0.0

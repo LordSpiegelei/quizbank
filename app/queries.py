@@ -8,6 +8,15 @@ from sqlmodel import Session, col, func, select
 from app.models import Attempt
 
 
+def finished_attempts(session: Session, exam_id: int) -> Sequence[Attempt]:
+    """History of an exam, newest first."""
+    return session.exec(
+        select(Attempt)
+        .where(Attempt.exam_id == exam_id, col(Attempt.finished_at).is_not(None))
+        .order_by(col(Attempt.finished_at).desc())
+    ).all()
+
+
 def last_finished_attempts(session: Session, exam_ids: Sequence[int]) -> dict[int, Attempt]:
     """Most recent finished attempt per exam, in one query."""
     latest = (
