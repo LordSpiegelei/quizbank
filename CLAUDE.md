@@ -138,8 +138,8 @@ Eine Datei = eine Probeklausur. Schema wird als Pydantic-Modell implementiert un
 
 ### Phase 1 – MVP (Ziel: in 1–2 Sessions nutzbar)
 - [x] Projektgerüst, Docker, Healthcheck
-- [ ] JSON-Upload im Browser + Validierung + Import (Duplikaterkennung über `id`)
-- [ ] Übersicht: Kurse → Probeklausuren (Anzahl Fragen, letztes Ergebnis)
+- [x] JSON-Upload im Browser + Validierung + Import (Duplikaterkennung über `id`)
+- [x] Übersicht: Kurse → Probeklausuren (Anzahl Fragen, letztes Ergebnis)
 - [ ] Quiz durchführen (eine Frage pro Seite, Navigation vor/zurück)
 - [ ] Auswertung am Ende: Punkte, richtig/falsch, **Erklärung zur richtigen Lösung**, Erklärung pro Option, **Quelle**
 - [ ] **Ergebnis-Historie pro Quiz** (Versuche speichern und auflisten)

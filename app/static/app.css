@@ -1,0 +1,18 @@
+/* App-specific additions on top of Pico.css */
+.brand { font-weight: 700; }
+.num { text-align: right; font-variant-numeric: tabular-nums; }
+
+.notice { padding: calc(var(--pico-spacing) / 2) var(--pico-spacing); border-radius: var(--pico-border-radius); }
+.notice.error, article.error { border-left: 4px solid var(--pico-del-color); }
+.notice.success, article.success { border-left: 4px solid var(--pico-ins-color); }
+
+mark.passed { background: var(--pico-ins-color); color: #fff; }
+mark.failed { background: var(--pico-del-color); color: #fff; }
+
+button.danger { --pico-color: var(--pico-del-color); --pico-border-color: var(--pico-del-color); }
+details form + form { margin-top: var(--pico-spacing); }
+
+.facts { display: grid; grid-template-columns: max-content 1fr; gap: 0.25rem var(--pico-spacing); }
+.facts dt { font-weight: 600; }
+.facts dd { margin: 0; }
+ul.errors { margin-bottom: 0; }

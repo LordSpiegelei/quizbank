@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% from "_macros.html" import delete_form, pass_mark, time_limit %}
+{% block title %}{{ exam.title }} – {{ super() }}{% endblock %}
+{% block content %}
+<nav aria-label="breadcrumb">
+  <ul>
+    <li><a href="{{ path('course_list') }}">{{ t("nav.courses") }}</a></li>
+    <li><a href="{{ path('course_detail', course_id=exam.course.id) }}">{{ exam.course.name }}</a></li>
+    <li>{{ exam.title }}</li>
+  </ul>
+</nav>
+<h1>{{ exam.title }}</h1>
+
+<dl class="facts">
+  <dt>{{ t("course.questions") }}</dt><dd>{{ question_count }}</dd>
+  <dt>{{ t("exam.max_score") }}</dt><dd>{{ t("common.points", n=max_score | num) }}</dd>
+  <dt>{{ t("course.time_limit") }}</dt><dd>{{ time_limit(exam) }}</dd>
+  <dt>{{ t("course.pass_mark") }}</dt><dd>{{ pass_mark(exam) }}</dd>
+  <dt>{{ t("exam.topics") }}</dt><dd>{{ topics | join(", ") or t("common.none") }}</dd>
+  <dt>{{ t("exam.imported_at") }}</dt><dd>{{ exam.imported_at | dt }}</dd>
+  {% if exam.source_file %}<dt>{{ t("exam.source_file") }}</dt><dd><code>{{ exam.source_file }}</code></dd>{% endif %}
+</dl>
+
+{{ delete_form(path('delete_exam', exam_id=exam.id), t("exam.delete"), t("exam.delete_confirm", title=exam.title)) }}
+{% endblock %}

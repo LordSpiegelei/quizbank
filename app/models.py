@@ -44,6 +44,18 @@ class Exam(SQLModel, table=True):
     questions: list["Question"] = _children("exam")
     attempts: list["Attempt"] = _children("exam")
 
+    @property
+    def effective_time_limit(self) -> int | None:
+        """Own time limit, falling back to the course default."""
+        own = self.time_limit_minutes
+        return own if own is not None else self.course.default_time_limit
+
+    @property
+    def effective_pass_mark(self) -> float | None:
+        """Own pass mark, falling back to the course default."""
+        own = self.pass_mark
+        return own if own is not None else self.course.default_pass_mark
+
 
 class Question(SQLModel, table=True):
     __table_args__ = (UniqueConstraint("exam_id", "external_id"),)
