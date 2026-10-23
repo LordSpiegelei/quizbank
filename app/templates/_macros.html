@@ -5,6 +5,8 @@
       <mark class="{{ 'passed' if attempt.passed else 'failed' }}">
         {{ t("result.passed") if attempt.passed else t("result.failed") }}
       </mark>
+    {% elif attempt.pass_mark is not none %}
+      <small>({{ t("result.pending") }})</small>
     {% endif %}
   {%- else -%}
     {{ t("common.none") }}
@@ -26,9 +28,9 @@
   {{ _with_default(exam.pass_mark, exam.effective_pass_mark, t("common.points", n=exam.effective_pass_mark | num)) }}
 {%- endmacro %}
 
-{% macro delete_form(action, label, confirm_text) -%}
+{% macro confirm_form(action, label, confirm_text, button_class="secondary outline danger") -%}
   <form method="post" action="{{ action }}" data-confirm="{{ confirm_text }}"
         onsubmit="return confirm(this.dataset.confirm)">
-    <button type="submit" class="secondary outline danger">{{ label }}</button>
+    <button type="submit" class="{{ button_class }}">{{ label }}</button>
   </form>
 {%- endmacro %}

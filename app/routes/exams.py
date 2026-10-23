@@ -1,16 +1,18 @@
 from dataclasses import dataclass
 
 from fastapi import APIRouter, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse
 from sqlmodel import Session, func, select
 from starlette.concurrency import run_in_threadpool
 from starlette.datastructures import UploadFile
 
+from app.attempts import open_attempt
 from app.db import SessionDep, get_or_404
 from app.importer import ImportResult, import_exam
 from app.models import Exam, Question
+from app.queries import finished_attempts
 from app.schemas import ExamFile, ExamFileError, parse_exam
-from app.templating import render
+from app.templating import redirect, render
 
 router = APIRouter()
 
@@ -34,6 +36,8 @@ def exam_detail(request: Request, session: SessionDep, exam_id: int):
         question_count=question_count,
         max_score=max_score or 0,
         topics=topics,
+        open_attempt=open_attempt(session, exam.id),
+        history=finished_attempts(session, exam.id),
     )
 
 
@@ -43,9 +47,7 @@ def delete_exam(request: Request, session: SessionDep, exam_id: int):
     course_id = exam.course_id
     session.delete(exam)
     session.commit()
-    return RedirectResponse(
-        request.app.url_path_for("course_detail", course_id=course_id), status_code=303
-    )
+    return redirect(request, "course_detail", course_id=course_id)
 
 
 @dataclass

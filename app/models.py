@@ -16,14 +16,20 @@ def _fk(target: str) -> Any:
     return Field(foreign_key=target, ondelete="CASCADE", index=True)
 
 
-def _children(back_populates: str) -> Any:
+def _children(back_populates: str, order_by: str | None = None) -> Any:
     """One-to-many relationship whose children are deleted by ON DELETE CASCADE."""
-    return Relationship(back_populates=back_populates, cascade_delete=True, passive_deletes=True)
+    return Relationship(
+        back_populates=back_populates,
+        cascade_delete=True,
+        passive_deletes=True,
+        sa_relationship_kwargs={"order_by": order_by} if order_by else {},
+    )
 
 
 class Course(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
-    name: str = Field(unique=True, index=True)
+    name: str = Field(unique=True, index=True)  # import key: exam files match on it
+    display_name: str | None = None
     default_time_limit: int | None = None
     default_pass_mark: float | None = None
 
@@ -43,7 +49,7 @@ class Exam(SQLModel, table=True):
     imported_at: datetime = Field(default_factory=utcnow)
 
     course: Course = Relationship(back_populates="exams")
-    questions: list["Question"] = _children("exam")
+    questions: list["Question"] = _children("exam", order_by="Question.position")
     attempts: list["Attempt"] = _children("exam")
 
     @property
@@ -79,18 +85,29 @@ class Question(SQLModel, table=True):
     option_explanations: list[str] | None = Field(default=None, sa_type=JSON)
     model_answer: str | None = None
     rubric: list[dict[str, Any]] | None = Field(default=None, sa_type=JSON)
+    # Local learning state; the importer never touches these.
     starred: bool = False
     disabled: bool = False
+    in_wrong_pool: bool = False
+    pool_streak: int = 0
 
     exam: Exam = Relationship(back_populates="questions")
-    answers: list["Answer"] = _children("question")
+    # Answers keep their snapshot when the question is deleted (question_id becomes NULL).
+    answers: list["Answer"] = Relationship(back_populates="question", passive_deletes=True)
 
 
 class Attempt(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     exam_id: int = _fk("exam.id")
     mode: str = "exam"
+    feedback: str = "end"
     filter: dict[str, Any] | None = Field(default=None, sa_type=JSON)
+    # Effective exam settings, frozen at start so later changes leave results alone.
+    # pass_mark is only set for exam mode: pass/fail is meaningless for partial attempts.
+    pass_mark: float | None = None
+    time_limit_minutes: int | None = None
+    multiple_scoring: MultipleScoring = Field(default="all_or_nothing", sa_type=AutoString)
+    deadline: datetime | None = None
     started_at: datetime = Field(default_factory=utcnow)
     finished_at: datetime | None = None
     duration_seconds: int | None = None
@@ -99,19 +116,28 @@ class Attempt(SQLModel, table=True):
     passed: bool | None = None
 
     exam: Exam = Relationship(back_populates="attempts")
-    answers: list["Answer"] = _children("attempt")
+    answers: list["Answer"] = _children("attempt", order_by="Answer.position")
 
 
 class Answer(SQLModel, table=True):
+    """One row per question in an attempt, created when the attempt starts."""
+
     __table_args__ = (UniqueConstraint("attempt_id", "question_id"),)
 
     id: int | None = Field(default=None, primary_key=True)
     attempt_id: int = _fk("attempt.id")
-    question_id: int = _fk("question.id")
+    question_id: int | None = Field(
+        default=None, foreign_key="question.id", ondelete="SET NULL", index=True
+    )
+    position: int = 0
+    # The question as it was at start, already in display order; `selected` indexes into it.
+    snapshot: dict[str, Any] = Field(default_factory=dict, sa_type=JSON)
     selected: list[int] | None = Field(default=None, sa_type=JSON)
     text_answer: str | None = None
+    rubric_scores: list[float] | None = Field(default=None, sa_type=JSON)
     self_score: float | None = None
+    revealed: bool = False
     is_correct: bool | None = None
 
     attempt: Attempt = Relationship(back_populates="answers")
-    question: Question = Relationship(back_populates="answers")
+    question: Question | None = Relationship(back_populates="answers")

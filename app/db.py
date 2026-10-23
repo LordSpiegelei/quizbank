@@ -8,6 +8,8 @@ from fastapi import Depends, HTTPException, Request
 from sqlalchemy import Engine, event
 from sqlmodel import Session, SQLModel, create_engine
 
+from app.attempts import finalize_expired
+
 ALEMBIC_INI = Path(__file__).resolve().parent.parent / "alembic.ini"
 
 
@@ -39,6 +41,8 @@ def run_migrations(engine: Engine) -> None:
 
 def get_session(request: Request) -> Iterator[Session]:
     with Session(request.app.state.engine) as session:
+        # Lazy auto-submit: every request sees attempts whose deadline passed as finished.
+        finalize_expired(session)
         yield session
 
 

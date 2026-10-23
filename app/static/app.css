@@ -16,3 +16,37 @@ details form + form { margin-top: var(--pico-spacing); }
 .facts dt { font-weight: 600; }
 .facts dd { margin: 0; }
 ul.errors { margin-bottom: 0; }
+
+/* Exam page */
+.actions { display: flex; gap: var(--pico-spacing); flex-wrap: wrap; align-items: start; }
+.actions form, td form { margin: 0; }
+td form button { padding: 0.25rem 0.75rem; margin: 0; }
+
+/* Quiz runner */
+[x-cloak] { display: none !important; }
+.quiz-bar { display: flex; flex-wrap: wrap; gap: var(--pico-spacing); justify-content: space-between; align-items: baseline; margin-bottom: var(--pico-spacing); }
+.timer { font-variant-numeric: tabular-nums; }
+.timer.low { color: var(--pico-del-color); }
+.scenario { border-left: 4px solid var(--pico-muted-border-color); padding-left: var(--pico-spacing); margin-bottom: var(--pico-spacing); }
+label.option { display: flex; gap: 0.75rem; align-items: baseline; padding: 0.5rem 0.75rem; border: 1px solid var(--pico-muted-border-color); border-radius: var(--pico-border-radius); cursor: pointer; }
+label.option:has(input:checked) { border-color: var(--pico-primary); background: var(--pico-primary-focus); }
+label.option input { flex: none; margin: 0; }
+.letter { font-weight: 700; min-width: 1.25rem; }
+.quiz-nav { display: flex; gap: var(--pico-spacing); justify-content: space-between; align-items: center; margin-bottom: var(--pico-spacing); }
+.quiz-nav button { margin: 0; }
+.save-status { color: var(--pico-muted-color); text-align: center; flex: 1; }
+.question-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(3rem, 1fr)); gap: 0.5rem; margin-bottom: var(--pico-spacing); }
+.question-grid button { padding: 0.4rem 0; margin: 0; }
+.question-grid button.answered { background: var(--pico-primary-focus); }
+.question-grid button.current { border-width: 3px; }
+
+/* Review */
+mark.status.correct { background: var(--pico-ins-color); color: #fff; }
+mark.status.wrong, mark.status.unanswered { background: var(--pico-del-color); color: #fff; }
+.review-options li { padding: 0.25rem 0.5rem; border-radius: var(--pico-border-radius); margin-bottom: 0.25rem; }
+.review-options li.correct { border-left: 4px solid var(--pico-ins-color); }
+.review-options li.wrong { border-left: 4px solid var(--pico-del-color); }
+.review-options .tag { margin-left: 0.5rem; color: var(--pico-muted-color); }
+.option-explanation { color: var(--pico-muted-color); font-size: 0.9em; }
+.option-explanation p { margin-bottom: 0.25rem; }
+.text-answer { white-space: pre-wrap; }

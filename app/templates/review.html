@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% from "_macros.html" import attempt_result %}
+{% block title %}{{ t("review.title") }}: {{ exam.title }} – {{ super() }}{% endblock %}
+{% block content %}
+<nav aria-label="breadcrumb">
+  <ul>
+    <li><a href="{{ path('course_list') }}">{{ t("nav.courses") }}</a></li>
+    <li><a href="{{ path('course_detail', course_id=exam.course.id) }}">{{ exam.course.name }}</a></li>
+    <li><a href="{{ path('exam_detail', exam_id=exam.id) }}">{{ exam.title }}</a></li>
+    <li>{{ t("review.title") }}</li>
+  </ul>
+</nav>
+<h1>{{ t("review.title") }}</h1>
+
+<dl class="facts">
+  <dt>{{ t("history.score") }}</dt><dd>{{ attempt_result(attempt) }}</dd>
+  {% if attempt.pass_mark is not none %}
+  <dt>{{ t("course.pass_mark") }}</dt><dd>{{ t("common.points", n=attempt.pass_mark | num) }}</dd>
+  {% endif %}
+  <dt>{{ t("history.mode") }}</dt><dd>{{ t("mode." ~ attempt.mode) }}</dd>
+  <dt>{{ t("review.finished_at") }}</dt><dd>{{ attempt.finished_at | dt }}</dd>
+  <dt>{{ t("history.duration") }}</dt><dd>{{ attempt.duration_seconds | duration }}</dd>
+</dl>
+
+{% for item in items %}
+{% set answer, q = item.answer, item.answer.snapshot %}
+<article id="q{{ loop.index }}">
+  <header>
+    <strong>{{ t("quiz.question") }} {{ loop.index }}</strong>
+    · <mark class="status {{ item.status }}">{{ t("review.status." ~ item.status) }}</mark>
+    · {{ item.result.score | num }} / {{ item.result.max_score | num }} {{ t("quiz.points") }}
+    <br><small>{{ q.topic }}{% if q.tags %} · {{ q.tags | join(", ") }}{% endif %}</small>
+  </header>
+  {% if q.scenario %}<div class="scenario">{{ q.scenario | md }}</div>{% endif %}
+  {{ q.question | md }}
+
+  {% if q.type == "open" %}
+    <h4>{{ t("review.your_answer") }}</h4>
+    {% if answer.text_answer %}<blockquote class="text-answer">{{ answer.text_answer }}</blockquote>
+    {% else %}<p><em>{{ t("review.no_answer") }}</em></p>{% endif %}
+    {% if q.model_answer %}<h4>{{ t("review.model_answer") }}</h4>{{ q.model_answer | md }}{% endif %}
+    {% if q.rubric %}
+      <h4>{{ t("review.rubric") }}</h4>
+      <ul>{% for row in q.rubric %}<li>{{ row.criterion }} ({{ t("common.points", n=row.points | num) }})</li>{% endfor %}</ul>
+    {% endif %}
+  {% else %}
+    <ol class="review-options" type="A">
+      {% for option in item.options %}
+      <li class="{{ 'correct' if option.is_correct }} {{ 'wrong' if option.is_selected and not option.is_correct }}">
+        {{ option.text | md_inline }}
+        {% if option.is_correct %}<small class="tag">✓ {{ t("review.correct_option") }}</small>{% endif %}
+        {% if option.is_selected %}<small class="tag">● {{ t("review.your_choice") }}</small>{% endif %}
+        {% if option.explanation %}<div class="option-explanation">{{ option.explanation | md }}</div>{% endif %}
+      </li>
+      {% endfor %}
+    </ol>
+  {% endif %}
+
+  {% if q.explanation %}
+    <h4>{{ t("review.explanation") }}</h4>
+    {{ q.explanation | md }}
+  {% endif %}
+  {% if q.source %}<footer><small>{{ t("review.source") }}: {{ q.source }}</small></footer>{% endif %}
+</article>
+{% endfor %}
+
+<p><a href="{{ path('exam_detail', exam_id=exam.id) }}">{{ t("review.back") }}</a></p>
+{% endblock %}
