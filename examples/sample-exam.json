@@ -1,0 +1,123 @@
+{
+  "format_version": 1,
+  "course": "Beispielkurs Grundlagen der Informatik",
+  "title": "Probeklausur 1",
+  "time_limit_minutes": 20,
+  "pass_mark": 7,
+  "multiple_scoring": "partial",
+  "questions": [
+    {
+      "id": "bsp-p1-001",
+      "type": "single",
+      "topic": "Zahlensysteme",
+      "tags": ["Binär"],
+      "question": "Welchen Dezimalwert hat die Binärzahl `1011`?",
+      "options": ["9", "10", "11", "13", "15"],
+      "correct": [2],
+      "points": 1,
+      "explanation": "$1 \\cdot 2^3 + 0 \\cdot 2^2 + 1 \\cdot 2^1 + 1 \\cdot 2^0 = 8 + 2 + 1 = 11$.",
+      "option_explanations": [
+        "9 wäre `1001`.",
+        "10 wäre `1010`.",
+        "Richtig.",
+        "13 wäre `1101`.",
+        "15 wäre `1111`."
+      ],
+      "source": "Skript Kapitel 1"
+    },
+    {
+      "id": "bsp-p1-002",
+      "type": "single",
+      "topic": "Zahlensysteme",
+      "tags": ["Hexadezimal"],
+      "question": "Wie viele Bit werden benötigt, um eine einzelne Hexadezimalziffer darzustellen?",
+      "options": ["2", "4", "8", "16"],
+      "correct": [1],
+      "points": 1,
+      "explanation": "Eine Hexadezimalziffer hat 16 mögliche Werte, und $2^4 = 16$.",
+      "source": "Skript Kapitel 1"
+    },
+    {
+      "id": "bsp-p1-003",
+      "type": "single",
+      "topic": "Algorithmen",
+      "tags": ["Laufzeit", "Suche"],
+      "question": "Welche Laufzeit hat die binäre Suche in einem sortierten Array mit $n$ Elementen im schlechtesten Fall?",
+      "options": ["$O(1)$", "$O(\\log n)$", "$O(n)$", "$O(n \\log n)$", "$O(n^2)$"],
+      "correct": [1],
+      "points": 1,
+      "explanation": "Jeder Schritt halbiert den Suchbereich, daher sind höchstens etwa $\\log_2 n$ Schritte nötig.",
+      "option_explanations": [
+        "Konstante Zeit gilt nur für direkten Indexzugriff.",
+        "Richtig.",
+        "Linear ist die sequentielle Suche.",
+        "Das ist die typische Laufzeit guter Sortierverfahren.",
+        "Quadratisch sind z. B. einfache Sortierverfahren wie Bubble Sort."
+      ],
+      "source": "Skript Kapitel 3"
+    },
+    {
+      "id": "bsp-p1-004",
+      "type": "single",
+      "topic": "Algorithmen",
+      "tags": ["Python"],
+      "question": "Was gibt der folgende Python-Code aus?\n\n```python\nwerte = [3, 1, 2]\nwerte.sort()\nprint(werte[-1])\n```",
+      "options": ["1", "2", "3", "Einen Fehler"],
+      "correct": [2],
+      "points": 1,
+      "explanation": "Nach dem Sortieren ist die Liste `[1, 2, 3]`; der Index `-1` liefert das letzte Element.",
+      "source": "Übungsblatt 2"
+    },
+    {
+      "id": "bsp-p1-005",
+      "type": "multiple",
+      "topic": "Datenstrukturen",
+      "tags": ["Stack", "Queue"],
+      "question": "Welche Aussagen sind richtig? (Mehrere Antworten möglich)",
+      "options": [
+        "Ein Stack arbeitet nach dem LIFO-Prinzip.",
+        "Eine Queue arbeitet nach dem LIFO-Prinzip.",
+        "Eine Queue arbeitet nach dem FIFO-Prinzip.",
+        "Bei einem Stack wird immer das älteste Element zuerst entnommen."
+      ],
+      "correct": [0, 2],
+      "points": 2,
+      "explanation": "Stack = *Last In, First Out*, Queue = *First In, First Out*.",
+      "option_explanations": [
+        "Richtig.",
+        "Falsch: LIFO beschreibt den Stack.",
+        "Richtig.",
+        "Falsch: Das wäre das FIFO-Verhalten einer Queue."
+      ],
+      "source": "Skript Kapitel 4"
+    },
+    {
+      "id": "bsp-p1-006",
+      "type": "single",
+      "topic": "Datenstrukturen",
+      "tags": ["Tabellen"],
+      "question": "Gegeben ist folgende Tabelle:\n\n| Struktur | Zugriff per Index |\n|---|---|\n| Array | ? |\n| Verkettete Liste | $O(n)$ |\n\nWelcher Wert gehört an die Stelle des Fragezeichens?",
+      "options": ["$O(1)$", "$O(\\log n)$", "$O(n)$"],
+      "correct": [0],
+      "points": 1,
+      "explanation": "Die Adresse eines Array-Elements lässt sich direkt aus Startadresse und Index berechnen.",
+      "source": "Skript Kapitel 4"
+    },
+    {
+      "id": "bsp-p1-007",
+      "type": "open",
+      "topic": "Fallstudie",
+      "tags": ["Datenstrukturwahl"],
+      "scenario": "Eine Bibliothek möchte eine Warteliste für vorbestellte Bücher verwalten. Wer zuerst vorbestellt, soll das Buch zuerst erhalten. Gelegentlich storniert jemand seine Vorbestellung.",
+      "question": "Welche Datenstruktur empfehlen Sie für die Warteliste? Begründen Sie Ihre Wahl und gehen Sie auf Stornierungen ein.",
+      "points": 4,
+      "model_answer": "Eine **Queue** (FIFO), weil die Reihenfolge der Vorbestellungen erhalten bleiben muss. Für Stornierungen eignet sich eine Implementierung als doppelt verkettete Liste mit zusätzlichem Verweis (z. B. Hash-Map) auf die Einträge, damit ein Eintrag in $O(1)$ entfernt werden kann.",
+      "rubric": [
+        { "criterion": "Nennt Queue / FIFO", "points": 2 },
+        { "criterion": "Begründet mit der Reihenfolge der Vorbestellungen", "points": 1 },
+        { "criterion": "Geht sinnvoll auf effizientes Entfernen bei Stornierungen ein", "points": 1 }
+      ],
+      "source": "Übungsblatt 4"
+    }
+  ]
+}

@@ -1,0 +1,473 @@
+{
+  "$defs": {
+    "MultipleChoiceQuestion": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "description": "Unique within the file; re-imports match on it.",
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "topic": {
+          "description": "Main topic, used for filters and statistics.",
+          "minLength": 1,
+          "title": "Topic",
+          "type": "string"
+        },
+        "tags": {
+          "default": [],
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Tags",
+          "type": "array"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "E.g. \"Foliensatz 2, Folie 14\".",
+          "title": "Source"
+        },
+        "scenario": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Scenario"
+        },
+        "question": {
+          "minLength": 1,
+          "title": "Question",
+          "type": "string"
+        },
+        "points": {
+          "default": 1,
+          "exclusiveMinimum": 0,
+          "title": "Points",
+          "type": "number"
+        },
+        "explanation": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Explanation"
+        },
+        "options": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 10,
+          "minItems": 2,
+          "title": "Options",
+          "type": "array"
+        },
+        "correct": {
+          "description": "0-based indices into options.",
+          "items": {
+            "type": "integer"
+          },
+          "minItems": 1,
+          "title": "Correct",
+          "type": "array"
+        },
+        "option_explanations": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Option Explanations"
+        },
+        "type": {
+          "const": "multiple",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "topic",
+        "question",
+        "options",
+        "correct",
+        "type"
+      ],
+      "title": "MultipleChoiceQuestion",
+      "type": "object"
+    },
+    "OpenQuestion": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "description": "Unique within the file; re-imports match on it.",
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "topic": {
+          "description": "Main topic, used for filters and statistics.",
+          "minLength": 1,
+          "title": "Topic",
+          "type": "string"
+        },
+        "tags": {
+          "default": [],
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Tags",
+          "type": "array"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "E.g. \"Foliensatz 2, Folie 14\".",
+          "title": "Source"
+        },
+        "scenario": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Scenario"
+        },
+        "question": {
+          "minLength": 1,
+          "title": "Question",
+          "type": "string"
+        },
+        "points": {
+          "default": 1,
+          "exclusiveMinimum": 0,
+          "title": "Points",
+          "type": "number"
+        },
+        "explanation": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Explanation"
+        },
+        "type": {
+          "const": "open",
+          "title": "Type",
+          "type": "string"
+        },
+        "model_answer": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Model Answer"
+        },
+        "rubric": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/RubricItem"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rubric"
+        }
+      },
+      "required": [
+        "id",
+        "topic",
+        "question",
+        "type"
+      ],
+      "title": "OpenQuestion",
+      "type": "object"
+    },
+    "RubricItem": {
+      "additionalProperties": false,
+      "properties": {
+        "criterion": {
+          "minLength": 1,
+          "title": "Criterion",
+          "type": "string"
+        },
+        "points": {
+          "minimum": 0,
+          "title": "Points",
+          "type": "number"
+        }
+      },
+      "required": [
+        "criterion",
+        "points"
+      ],
+      "title": "RubricItem",
+      "type": "object"
+    },
+    "SingleChoiceQuestion": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "description": "Unique within the file; re-imports match on it.",
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "topic": {
+          "description": "Main topic, used for filters and statistics.",
+          "minLength": 1,
+          "title": "Topic",
+          "type": "string"
+        },
+        "tags": {
+          "default": [],
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Tags",
+          "type": "array"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "E.g. \"Foliensatz 2, Folie 14\".",
+          "title": "Source"
+        },
+        "scenario": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Scenario"
+        },
+        "question": {
+          "minLength": 1,
+          "title": "Question",
+          "type": "string"
+        },
+        "points": {
+          "default": 1,
+          "exclusiveMinimum": 0,
+          "title": "Points",
+          "type": "number"
+        },
+        "explanation": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Explanation"
+        },
+        "options": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 10,
+          "minItems": 2,
+          "title": "Options",
+          "type": "array"
+        },
+        "correct": {
+          "description": "Exactly one 0-based index into options.",
+          "items": {
+            "type": "integer"
+          },
+          "maxItems": 1,
+          "minItems": 1,
+          "title": "Correct",
+          "type": "array"
+        },
+        "option_explanations": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Option Explanations"
+        },
+        "type": {
+          "const": "single",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "topic",
+        "question",
+        "options",
+        "correct",
+        "type"
+      ],
+      "title": "SingleChoiceQuestion",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "format_version": {
+      "const": 1,
+      "title": "Format Version",
+      "type": "integer"
+    },
+    "course": {
+      "minLength": 1,
+      "title": "Course",
+      "type": "string"
+    },
+    "title": {
+      "minLength": 1,
+      "title": "Title",
+      "type": "string"
+    },
+    "time_limit_minutes": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Time Limit Minutes"
+    },
+    "pass_mark": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Pass Mark"
+    },
+    "multiple_scoring": {
+      "default": "all_or_nothing",
+      "enum": [
+        "all_or_nothing",
+        "partial"
+      ],
+      "title": "Multiple Scoring",
+      "type": "string"
+    },
+    "questions": {
+      "items": {
+        "discriminator": {
+          "mapping": {
+            "multiple": "#/$defs/MultipleChoiceQuestion",
+            "open": "#/$defs/OpenQuestion",
+            "single": "#/$defs/SingleChoiceQuestion"
+          },
+          "propertyName": "type"
+        },
+        "oneOf": [
+          {
+            "$ref": "#/$defs/SingleChoiceQuestion"
+          },
+          {
+            "$ref": "#/$defs/MultipleChoiceQuestion"
+          },
+          {
+            "$ref": "#/$defs/OpenQuestion"
+          }
+        ]
+      },
+      "minItems": 1,
+      "title": "Questions",
+      "type": "array"
+    }
+  },
+  "required": [
+    "format_version",
+    "course",
+    "title",
+    "questions"
+  ],
+  "title": "ExamFile",
+  "type": "object"
+}
