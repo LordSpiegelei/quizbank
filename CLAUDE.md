@@ -122,17 +122,43 @@ Eine Datei = eine Probeklausur. Schema wird als Pydantic-Modell implementiert un
 - `option_explanations`, `explanation`, `scenario`, `rubric`: optional
 - `pass_mark`, `time_limit_minutes`: optional (Fallback: Kurs-Einstellung)
 - Import ist **idempotent** über `id` (gleiche ID → Frage wird aktualisiert, nicht dupliziert)
+- Klausur-Identität = `course` (Abgleich mit `Course.name`) + `title`. **Dateien gewinnen** gegenüber der UI: die Datei ist maßgeblich, Fragen, die nicht mehr in ihr stehen, werden gelöscht (Versuche behalten ihre Snapshots, siehe §6)
+- Browser-Uploads landen nur in der DB, nicht in `QUESTIONS_DIR`. Beim Löschen einer Klausur in der UI erscheint die Warnung „kommt beim Neustart zurück" nur, wenn `QUESTIONS_DIR/source_file` tatsächlich existiert
 - Validierungsfehler werden pro Frage mit Pfad angezeigt (z. B. `questions[4].correct: index 5 out of range`)
 
 ## 6. Datenmodell (SQLModel)
 
-- `Course` (id, name, default_time_limit, default_pass_mark)
-- `Exam` (id, course_id, title, time_limit_minutes, pass_mark, imported_at)
-- `Question` (id [intern, int], external_id [aus JSON, eindeutig pro Exam], exam_id, type, topic, tags [JSON], source, question, scenario, options [JSON], correct [JSON], points, explanation, option_explanations [JSON], model_answer, rubric [JSON], starred, disabled)
-- `Attempt` (id, exam_id, mode [`exam` | `practice` | `retry_wrong`], filter [JSON: Themen/Tags/Anzahl], started_at, finished_at, duration_seconds, score, max_score, passed)
+- `Course` (id, name, display_name, default_time_limit, default_pass_mark)
+  - `name` = Import-Schlüssel, unveränderlich für importierte Kurse; die UI benennt nur `display_name` um (Fallback `name`). Suche/Sortierung nach dem angezeigten Namen. Klausurtitel haben keinen Anzeigenamen
+- `Exam` (id, course_id, title, time_limit_minutes, pass_mark, multiple_scoring, source_file, imported_at)
+- `Question` (id [intern, int], external_id [aus JSON, eindeutig pro Exam], exam_id, position, type, topic, tags [JSON], source, question, scenario, options [JSON], correct [JSON], points, explanation, option_explanations [JSON], model_answer, rubric [JSON], starred, disabled, in_wrong_pool, pool_streak)
+  - `starred`, `disabled`, `in_wrong_pool`, `pool_streak` = lokaler Lernstand; der Import fasst sie nicht an
+- `Attempt` (id, exam_id, mode [`exam` | `practice` | `retry_wrong`], feedback [`instant` | `end`], filter [JSON: Themen/Tags/Anzahl], pass_mark, time_limit_minutes, multiple_scoring, deadline, started_at, finished_at, duration_seconds, score, max_score, passed)
+  - `pass_mark`, `time_limit_minutes`, `multiple_scoring` = effektive Werte, beim Start eingefroren
   - Historie pro Quiz = alle `Attempt`s eines `Exam`
-  - „Falsche wiederholen“ = Fragen mit `Answer.is_correct = false` aus dem letzten bzw. den letzten N Versuchen dieses `Exam`
-- `Answer` (id, attempt_id, question_id, selected [JSON], text_answer, self_score, is_correct)
+- `Answer` (id, attempt_id, question_id [nullable, `ON DELETE SET NULL`], position, snapshot [JSON], selected [JSON], text_answer, rubric_scores [JSON], self_score, revealed, is_correct)
+  - **Eine Zeile pro Frage im Versuch**, angelegt beim Start (unbeantwortet = `selected` ist `None`)
+  - `snapshot` = eingefrorene Frage (type, topic, tags, source, scenario, question, options, correct, points, explanations, model_answer, rubric), **bereits in Anzeigereihenfolge** (Optionen gemischt, `correct`/`option_explanations` mitgemappt). `selected` bezieht sich immer auf den Snapshot. Auswertung und Statistik lesen nur den Snapshot, Re-Importe ändern die Historie nie
+  - `question_id` = Verweis auf die Live-Frage (Stern, Pool, Wiederholen); `None`, wenn die Frage aus der Datei entfernt wurde
+  - `self_score` = Summe von `rubric_scores` (ohne Raster direkt eingegeben)
+
+### Versuchsablauf
+- **Klausurmodus**: immer **alle** Fragen (ignoriert `disabled`), `feedback = end`. `disabled` und Filter gelten nur für Übung und Wiederholen
+- **Timer**: Server-Deadline `deadline = started_at + limit`, Uhrzeit läuft weiter, auch während die Seite geschlossen ist. Der Client bekommt die Restsekunden vom Server. Abgelaufene Versuche werden **lazy** abgeschlossen (`finalize_expired`, beim Lesen von Versuchen und bei jedem Schreibzugriff), mit `finished_at = deadline`. Unbeantwortete Fragen zählen 0. Ohne Klausurmodus kein Countdown, nur verstrichene Zeit
+- **Höchstens ein unfertiger Versuch pro Exam**: „Fortsetzen" oder „Verwerfen und neu starten" (Verwerfen löscht den Versuch)
+- **Lösungen erst dann zum Client, wenn sie gezeigt werden dürfen**: die Start-Daten enthalten nur Frage, Optionen, Szenario, Thema, Punkte und das aktuelle `selected`. Sofort-Feedback läuft über einen `reveal`-Endpunkt (setzt `revealed`, die Antwort ist danach gesperrt), sonst über die Auswertungsseite nach der Abgabe
+- **Antwort speichern**: `PUT /api/attempts/{id}/answers/{answer_id}` mit `{selected}` oder `{text_answer}`; **409**, wenn der Versuch beendet ist, die Deadline überschritten ist (löst den Abschluss aus) oder die Antwort `revealed` ist. Prüft die Indizes und bei `single` genau einen Eintrag
+- `score`/`max_score`/`passed` werden beim Abschluss gespeichert und nur bei einer Selbstbewertung aus dem Snapshot neu berechnet
+
+### Falsch-Pool (pro Exam)
+- **Rein**: Fragen, die in einem **abgeschlossenen Versuch beliebigen Modus** falsch, teilweise richtig oder unbeantwortet waren (`open`: Selbstbewertung unter voller Punktzahl). `pool_streak` wird auf 0 gesetzt. Aktualisiert wird beim Abschluss (auch lazy), nie während des Versuchs; verworfene Versuche ändern nichts
+- **Raus**: nach **2 richtigen Antworten in Folge** (in jedem Modus) oder manuell („aus Pool entfernen"). Reine Funktion `update_pool(in_pool, streak, is_correct)` in `scoring.py`, Schwelle als Konstante
+- **Wiederholen** (`retry_wrong`): der ganze Pool ohne deaktivierte Fragen, optional eine zufällige Stichprobe. Die Exam-Seite zeigt die Pool-Größe und eine Pool-Liste; bei leerem Pool ist der Button ausgegraut
+- Statistik pro Thema: **Snapshot-Thema** abgeschlossener Versuche aller Modi; `open` erst nach Selbstbewertung; teilweise richtig zählt als falsch
+
+### Zurücksetzen und Export
+- „Lernstand zurücksetzen" (Sterne, Deaktivierungen, Pool, Streaks; pro Exam und global) und „Verlauf löschen" (pro Exam, lässt den Pool unberührt) sind getrennte Aktionen mit eigener Bestätigung
+- Export = exakt `format_version: 1` aus den Live-Fragen in `position`-Reihenfolge (Roundtrip ohne Änderungen beim Re-Import), ohne Lernstand
 
 ## 7. Features nach Phasen
 
@@ -140,6 +166,7 @@ Eine Datei = eine Probeklausur. Schema wird als Pydantic-Modell implementiert un
 - [x] Projektgerüst, Docker, Healthcheck
 - [x] JSON-Upload im Browser + Validierung + Import (Duplikaterkennung über `id`)
 - [x] Übersicht: Kurse → Probeklausuren (Anzahl Fragen, letztes Ergebnis)
+- [ ] Attempts-PR: komplettes Schema aus §6 in einer Migration; nur Klausurmodus mit allen Fragen und Auswertung am Ende, Countdown mit Auto-Abgabe (falls Limit gesetzt), Fortsetzen/Verwerfen, Antworten per JSON-`PUT` aus Alpine. `open` nur Textfeld + Musterlösung/Raster in der Auswertung, `passed` bleibt `None` bis Phase 3
 - [ ] Quiz durchführen (eine Frage pro Seite, Navigation vor/zurück)
 - [ ] Auswertung am Ende: Punkte, richtig/falsch, **Erklärung zur richtigen Lösung**, Erklärung pro Option, **Quelle**
 - [ ] **Ergebnis-Historie pro Quiz** (Versuche speichern und auflisten)
@@ -147,8 +174,8 @@ Eine Datei = eine Probeklausur. Schema wird als Pydantic-Modell implementiert un
 ### Phase 2 – Lernfunktionen (Funktionsumfang wie quiz-prep)
 - [ ] Start-Dialog: Quiz wählen, **Filter nach Thema/Tags**, Fragenanzahl, Timer an/aus
 - [ ] Zwei Feedback-Modi: **Sofort-Feedback** nach jeder Frage oder **Auswertung erst am Ende**
-- [ ] **Falsche Fragen pro Quiz wiederholen** (letzter Versuch oder letzte N Versuche)
-- [ ] Fragen **markieren** (Stern) und **deaktivieren**; beim Start filtern: alle / nur markierte / ohne deaktivierte; alles zurücksetzen in den Einstellungen
+- [ ] **Falsch-Pool pro Quiz** wiederholen (siehe §6), Pool-Liste auf der Exam-Seite
+- [ ] Fragen **markieren** (Stern) und **deaktivieren**; beim Start filtern: alle / nur markierte / ohne deaktivierte; „Lernstand zurücksetzen" in den Einstellungen
 - [ ] Fragen und Antwortoptionen zufällig mischen
 - [ ] **Export** eines Quiz zurück nach JSON
 - [ ] **Tastatursteuerung** (1–5 bzw. A–E zum Auswählen, Enter = weiter, ←/→ navigieren, S = markieren)
@@ -229,6 +256,8 @@ quizbank/
 - `open`: Summe der selbst vergebenen Raster-Punkte (auf 0…`points` begrenzt); gilt als richtig bei voller Punktzahl, ohne Selbstbewertung `is_correct = None`
 - Kein Punktabzug für falsche Antworten (Default)
 - `passed = score >= pass_mark`; solange eine `open`-Frage noch nicht selbst bewertet ist, bleibt `passed` leer (`None`)
+- `passed` nur für Versuche mit `mode = exam` über alle Fragen; Übung und Wiederholen zeigen nur Punkte und Prozent (`passed = None`)
+- „Falsch" (für Pool und Statistik) = `is_correct is False` **oder unbeantwortet**; teilweise richtige `multiple`-Antworten zählen als falsch, nicht selbst bewertete `open`-Fragen zählen nicht
 
 ## 11. Generierungs-Prompt (Entwurf für Claude)
 
@@ -248,6 +277,11 @@ quizbank/
 - [x] Historie → **alle** Versuche behalten, manuelles Löschen möglich
 - [x] Sprache → Deutsch jetzt, Struktur EN-fähig (`app/locales/`)
 - [x] Migrationen → Alembic ab Start
+- [x] Re-Import vs. Historie → **eingefroren**: jeder Versuch speichert Snapshots seiner Fragen (§6)
+- [x] Datei vs. UI → **Dateien gewinnen**; Kurs-Umbenennung nur über `display_name`
+- [x] Timer → Server-Deadline, läuft weiter, lazy Auto-Abgabe
+- [x] „Falsche wiederholen" → persistenter **Falsch-Pool pro Exam** (raus nach 2× richtig in Folge) statt „letzte N Versuche"
+- [x] Selbstbewertung `open` → pro Raster-Kriterium (`rubric_scores`)
 
 ## graphify
 
