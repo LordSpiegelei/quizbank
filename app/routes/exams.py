@@ -8,13 +8,21 @@ from starlette.datastructures import UploadFile
 
 from app.attempts import open_attempt
 from app.db import SessionDep, get_or_404
-from app.importer import ImportResult, import_exam
+from app.importer import ImportResult, comes_back_on_restart, import_exam
 from app.models import Exam, Question
 from app.queries import finished_attempts
 from app.schemas import ExamFile, ExamFileError, parse_exam
 from app.templating import redirect, render
 
 router = APIRouter()
+
+
+def _delete_confirm(request: Request, exam: Exam) -> str:
+    t = request.app.state.t
+    text = t("exam.delete_confirm", title=exam.title)
+    if comes_back_on_restart(request.app.state.settings, exam):
+        text += " " + t("exam.reimport_hint", file=exam.source_file)
+    return text
 
 
 @router.get("/exams/{exam_id}", response_class=HTMLResponse)
@@ -37,6 +45,7 @@ def exam_detail(request: Request, session: SessionDep, exam_id: int):
         max_score=max_score or 0,
         topics=topics,
         open_attempt=open_attempt(session, exam.id),
+        delete_confirm=_delete_confirm(request, exam),
         history=finished_attempts(session, exam.id),
     )
 

@@ -5,7 +5,7 @@
 <nav aria-label="breadcrumb">
   <ul>
     <li><a href="{{ path('course_list') }}">{{ t("nav.courses") }}</a></li>
-    <li><a href="{{ path('course_detail', course_id=exam.course.id) }}">{{ exam.course.name }}</a></li>
+    <li><a href="{{ path('course_detail', course_id=exam.course.id) }}">{{ exam.course.label }}</a></li>
     <li><a href="{{ path('exam_detail', exam_id=exam.id) }}">{{ exam.title }}</a></li>
     <li>{{ t("review.title") }}</li>
   </ul>

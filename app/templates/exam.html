@@ -5,7 +5,7 @@
 <nav aria-label="breadcrumb">
   <ul>
     <li><a href="{{ path('course_list') }}">{{ t("nav.courses") }}</a></li>
-    <li><a href="{{ path('course_detail', course_id=exam.course.id) }}">{{ exam.course.name }}</a></li>
+    <li><a href="{{ path('course_detail', course_id=exam.course.id) }}">{{ exam.course.label }}</a></li>
     <li>{{ exam.title }}</li>
   </ul>
 </nav>
@@ -66,5 +66,5 @@
 {% endif %}
 
 <hr>
-{{ confirm_form(path('delete_exam', exam_id=exam.id), t("exam.delete"), t("exam.delete_confirm", title=exam.title)) }}
+{{ confirm_form(path('delete_exam', exam_id=exam.id), t("exam.delete"), delete_confirm) }}
 {% endblock %}

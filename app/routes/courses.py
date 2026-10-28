@@ -1,10 +1,12 @@
+from collections.abc import Sequence
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
-from sqlmodel import Session, col, func, select
+from sqlmodel import Session, col, func, or_, select
 
 from app.db import SessionDep, get_or_404
+from app.importer import comes_back_on_restart
 from app.models import Attempt, Course, Exam, Question
 from app.queries import last_finished_attempts
 from app.templating import redirect, render
@@ -24,11 +26,14 @@ class FormError(ValueError):
 
 
 def _valid_name(session: Session, name: str, course_id: int | None) -> str:
+    """Must differ from every other course's displayed name and import key."""
     name = name.strip()
     if not name:
         raise FormError("error.name_required")
-    clash = session.exec(select(Course).where(Course.name == name)).first()
-    if clash is not None and clash.id != course_id:
+    stmt = select(Course).where(or_(Course.name == name, Course.display_name == name))
+    if course_id is not None:
+        stmt = stmt.where(Course.id != course_id)
+    if session.exec(stmt).first() is not None:
         raise FormError("error.name_taken")
     return name
 
@@ -54,7 +59,7 @@ def _list_page(
     request: Request, session: Session, q: str = "", sort: SortKey = "name", **extra
 ) -> HTMLResponse:
     last_practiced = func.max(Attempt.started_at)
-    by_name = func.casefold(Course.name)
+    by_name = func.casefold(Course.label)
     stmt = (
         select(Course, func.count(func.distinct(Exam.id)), last_practiced)
         .outerjoin(Exam, col(Exam.course_id) == Course.id)
@@ -87,6 +92,15 @@ def create_course(request: Request, session: SessionDep, name: Annotated[str, Fo
     return redirect(request, "course_detail", course_id=course.id)
 
 
+def _delete_confirm(request: Request, course: Course, exams: Sequence[Exam]) -> str:
+    t, settings = request.app.state.t, request.app.state.settings
+    text = t("course.delete_confirm", name=course.label)
+    reimported = [exam.title for exam in exams if comes_back_on_restart(settings, exam)]
+    if reimported:
+        text += " " + t("course.reimport_hint", titles=", ".join(reimported))
+    return text
+
+
 def _course_page(request: Request, session: Session, course: Course, **extra) -> HTMLResponse:
     exams = session.exec(
         select(Exam).where(Exam.course_id == course.id).order_by(func.casefold(Exam.title))
@@ -103,6 +117,7 @@ def _course_page(request: Request, session: Session, course: Course, **extra) ->
         request,
         "course.html",
         course=course,
+        delete_confirm=_delete_confirm(request, course, exams),
         exams=exams,
         question_counts=question_counts,
         last_attempts=last_finished_attempts(session, exam_ids),
@@ -126,14 +141,15 @@ def update_course(
 ):
     course = get_or_404(session, Course, course_id)
     try:
+        label = _valid_name(session, name, course.id)
         values = {
-            "name": _valid_name(session, name, course.id),
             "default_time_limit": _optional_number(default_time_limit, int),
             "default_pass_mark": _optional_number(default_pass_mark, float),
         }
     except FormError as exc:
         error = _error_text(request, exc)
         return _course_page(request, session, course, status_code=400, error=error)
+    course.rename(label)
     course.sqlmodel_update(values)
     session.commit()
     url = request.app.url_path_for("course_detail", course_id=course.id)

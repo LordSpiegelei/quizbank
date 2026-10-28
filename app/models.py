@@ -1,7 +1,9 @@
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import JSON, UniqueConstraint
+from pydantic import ConfigDict
+from sqlalchemy import JSON, ColumnElement, UniqueConstraint, func
+from sqlalchemy.ext.hybrid import hybrid_property
 from sqlmodel import AutoString, Field, Relationship, SQLModel
 
 from app.schemas import MultipleScoring
@@ -27,6 +29,8 @@ def _children(back_populates: str, order_by: str | None = None) -> Any:
 
 
 class Course(SQLModel, table=True):
+    model_config = ConfigDict(ignored_types=(hybrid_property,))  # let pydantic skip `label`
+
     id: int | None = Field(default=None, primary_key=True)
     name: str = Field(unique=True, index=True)  # import key: exam files match on it
     display_name: str | None = None
@@ -34,6 +38,20 @@ class Course(SQLModel, table=True):
     default_pass_mark: float | None = None
 
     exams: list["Exam"] = _children("course")
+
+    @hybrid_property
+    def label(self) -> str:
+        """The name shown in the UI: the display name, falling back to the import key."""
+        return self.display_name or self.name
+
+    @label.inplace.expression
+    @classmethod
+    def _label_expression(cls) -> ColumnElement[str]:
+        return func.coalesce(cls.display_name, cls.name)
+
+    def rename(self, label: str) -> None:
+        """Files match on `name`, so renaming only sets the display name (CLAUDE.md §5)."""
+        self.display_name = None if label == self.name else label
 
 
 class Exam(SQLModel, table=True):
