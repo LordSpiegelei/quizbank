@@ -33,6 +33,8 @@ TEXTS: dict[str, str] = {
     "course.defaults_hint": "Gilt für Probeklausuren ohne eigenes Zeitlimit bzw. eigene Bestehensgrenze.",
     "course.delete": "Kurs löschen",
     "course.delete_confirm": "Kurs „{name}“ mit allen Probeklausuren und Versuchen löschen?",
+    "course.reimport_hint": "Diese Probeklausuren liegen noch als Datei im Fragen-Ordner und werden beim nächsten Start ohne Verlauf neu importiert: {titles}",
+    "course.import_name": "Dateien werden weiterhin über den Namen „{name}“ zugeordnet.",
     "course.saved": "Gespeichert.",
     # Exam detail
     "exam.topics": "Themen",
@@ -42,6 +44,7 @@ TEXTS: dict[str, str] = {
     "exam.from_course_default": "(Kursstandard)",
     "exam.delete": "Probeklausur löschen",
     "exam.delete_confirm": "Probeklausur „{title}“ mit allen Versuchen löschen?",
+    "exam.reimport_hint": "Die Datei „{file}“ liegt noch im Fragen-Ordner – beim nächsten Start wird sie ohne Verlauf neu importiert.",
     "exam.start": "Klausur starten",
     "exam.open_attempt": "Angefangener Versuch vom {started}.",
     "exam.resume": "Fortsetzen",

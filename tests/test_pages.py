@@ -1,7 +1,10 @@
+from dataclasses import replace
 from datetime import UTC, datetime
 
+from fastapi.testclient import TestClient
 from sqlmodel import select
 
+from app.main import create_app
 from app.models import Attempt, Course, Exam, Question
 from tests.factories import EXAMPLE, exam, single
 from tests.factories import db as _db
@@ -131,11 +134,9 @@ def test_update_course_settings(client) -> None:
     assert "Gespeichert." in response.text
     with _db(client) as session:
         course = session.get(Course, course_id)
-        assert (course.name, course.default_time_limit, course.default_pass_mark) == (
-            "Kurs neu",
-            90,
-            7.5,
-        )
+        # Renaming only sets the display name; files still match on the import key.
+        assert (course.name, course.display_name) == ("Kurs", "Kurs neu")
+        assert (course.default_time_limit, course.default_pass_mark) == (90, 7.5)
 
     page = client.get(f"/exams/{exam_id}").text
     assert "90 Min." in page
@@ -167,3 +168,50 @@ def test_delete_course_and_exam(client) -> None:
     with _db(client) as session:
         assert session.exec(select(Course)).all() == []
         assert session.exec(select(Question)).all() == []
+
+
+def test_rename_keeps_import_key(client) -> None:
+    _upload(client, ("a.json", exam()))
+    with _db(client) as session:
+        course_id = session.exec(select(Course)).one().id
+    client.post("/courses", data={"name": "Statistik"})
+
+    client.post(f"/courses/{course_id}", data={"name": "Mein Kurs"})
+    page = client.get(f"/courses/{course_id}").text
+    assert "<h1>Mein Kurs</h1>" in page
+    assert "über den Namen „Kurs“ zugeordnet" in page
+    assert "Mein Kurs" in client.get("/?q=mein").text
+
+    # A re-import still lands in the renamed course instead of creating a new one.
+    _upload(client, ("b.json", exam(title="Klausur 2")))
+    with _db(client) as session:
+        assert len(session.exec(select(Course)).all()) == 2
+        assert len(session.get(Course, course_id).exams) == 2
+
+    # Neither another course's displayed name nor its import key may be reused.
+    for taken in ("Statistik", "Kurs"):
+        response = client.post("/courses", data={"name": taken})
+        assert "bereits einen Kurs" in response.text
+    response = client.post(f"/courses/{course_id}", data={"name": "Statistik"})
+    assert "bereits einen Kurs" in response.text
+
+    client.post(f"/courses/{course_id}", data={"name": "Kurs"})  # back to the import key
+    with _db(client) as session:
+        assert session.get(Course, course_id).display_name is None
+
+
+def test_delete_warns_when_file_comes_back(settings) -> None:
+    settings.questions_dir.mkdir()
+    (settings.questions_dir / "a.json").write_text(exam(), encoding="utf-8")
+    app = create_app(replace(settings, auto_import=True))
+    with TestClient(app) as client:
+        _upload(client, ("b.json", exam(title="Hochgeladen")))
+        with _db(client) as session:
+            course_id = session.exec(select(Course)).one().id
+            uploaded, file_exam = sorted(session.exec(select(Exam)), key=lambda e: e.title)
+
+        warning = "liegt noch im Fragen-Ordner"
+        assert warning in client.get(f"/exams/{file_exam.id}").text
+        assert warning not in client.get(f"/exams/{uploaded.id}").text
+        page = client.get(f"/courses/{course_id}").text
+        assert "neu importiert: Klausur" in page

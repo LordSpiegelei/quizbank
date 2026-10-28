@@ -7,6 +7,7 @@ from typing import Any
 
 from sqlmodel import Session, select
 
+from app.config import Settings
 from app.models import Course, Exam, Question, utcnow
 from app.schemas import QUESTION_MODELS, ExamFile, ExamFileError, QuestionIn, parse_exam
 
@@ -86,6 +87,13 @@ def import_exam(
     result = ImportResult(exam.id, created, updated, len(existing), changed)
     session.commit()
     return result
+
+
+def comes_back_on_restart(settings: Settings, exam: Exam) -> bool:
+    """Whether auto-import would re-create the exam: its file is still in QUESTIONS_DIR."""
+    if not settings.auto_import or exam.source_file is None:
+        return False
+    return (settings.questions_dir / Path(exam.source_file).name).is_file()
 
 
 def import_directory(session: Session, directory: Path) -> dict[str, ImportResult | list[str]]:
