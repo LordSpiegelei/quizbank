@@ -25,7 +25,7 @@
       <span class="flags" x-show="current.flags">
         <template x-for="(on, flag) in current.flags || {}" :key="flag">
           <button type="button" class="flag" :class="{ on }" :aria-pressed="on ? 'true' : 'false'"
-                  @click="setFlag(current, flag, !on)" x-text="texts[`flag.${flag}.${on ? 'on' : 'off'}`]"></button>
+                  @click="setFlag(current, flag, !on)" x-text="texts[`flag.${flag}.${on ? 'unset' : 'set'}`]"></button>
         </template>
       </span>
     </header>

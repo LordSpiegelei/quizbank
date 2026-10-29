@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_macros.html" import attempt_result, flag_forms %}
+{% from "_macros.html" import attempt_result, question_menu %}
 {% block title %}{{ t("review.title") }}: {{ exam.title }} – {{ super() }}{% endblock %}
 {% block content %}
 <nav aria-label="breadcrumb">
@@ -31,7 +31,7 @@
     · {{ item.result.score | num }} / {{ item.result.max_score | num }} {{ t("quiz.points") }}
     <br><small>{{ q.topic }}{% if q.tags %} · {{ q.tags | join(", ") }}{% endif %}</small>
     {% if answer.question_id in questions %}
-      {{ flag_forms(questions[answer.question_id], path('attempt_review', attempt_id=attempt.id) ~ '#q' ~ loop.index) }}
+      {{ question_menu(questions[answer.question_id], path('attempt_review', attempt_id=attempt.id) ~ '#q' ~ loop.index) }}
     {% endif %}
   </header>
   {% if q.scenario %}<div class="scenario">{{ q.scenario | md }}</div>{% endif %}

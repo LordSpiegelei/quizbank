@@ -10,7 +10,7 @@ from sqlmodel import Session
 
 from app.learning import FLAGS
 from app.locales import Translator
-from app.markdown import render_markdown, render_markdown_inline
+from app.markdown import markdown_text, render_markdown, render_markdown_inline
 from app.queries import nav_courses
 
 TEMPLATE_DIR = Path(__file__).resolve().parent / "templates"
@@ -44,11 +44,14 @@ def make_templates(t: Translator, url_path_for: Callable[..., Any]) -> Jinja2Tem
     templates.env.globals["t"] = t
     templates.env.globals["path"] = path
     templates.env.globals["flags"] = FLAGS
+    templates.env.globals["flag_icons"] = {"starred": "star", "disabled": "eye-off"}
+    templates.env.globals["icons_url"] = str(url_path_for("static", path="icons.svg"))
     templates.env.filters["num"] = format_number
     templates.env.filters["dt"] = format_datetime
     templates.env.filters["duration"] = format_duration
     templates.env.filters["md"] = render_markdown
     templates.env.filters["md_inline"] = render_markdown_inline
+    templates.env.filters["plain"] = markdown_text
     return templates
 
 

@@ -1,15 +1,17 @@
 {% extends "base.html" %}
-{% from "_macros.html" import attempt_result, confirm_form, flag_forms, line_chart, pass_mark, time_limit, topic_bars %}
+{% from "_macros.html" import attempt_result, confirm_form, icon, line_chart, page_head, pass_mark, question_menu, question_state, time_limit, topic_bars %}
 {% block title %}{{ exam.title }} – {{ super() }}{% endblock %}
+
 {% macro shuffle_fields() -%}
-  <fieldset>
+  <fieldset class="field">
+    <legend>{{ t("start.order") }}</legend>
     <label><input type="checkbox" name="shuffle_questions" value="true"> {{ t("start.shuffle_questions") }}</label>
     <label><input type="checkbox" name="shuffle_options" value="true"> {{ t("start.shuffle_options") }}</label>
   </fieldset>
 {%- endmacro %}
 
 {% macro feedback_fields() -%}
-  <fieldset>
+  <fieldset class="field">
     <legend>{{ t("start.feedback") }}</legend>
     <label><input type="radio" name="feedback" value="instant" checked> {{ t("start.feedback.instant") }}</label>
     <label><input type="radio" name="feedback" value="end"> {{ t("start.feedback.end") }}</label>
@@ -17,187 +19,189 @@
 {%- endmacro %}
 
 {% macro count_field(total) -%}
-  <label>{{ t("start.count") }}
+  <label class="field">{{ t("start.count") }}
     <input type="number" name="count" min="1" max="{{ total }}" placeholder="{{ t('start.count_all', n=total) }}">
   </label>
 {%- endmacro %}
 
-{# Multi-select filter; nothing ticked means "all". #}
+{# Multi-select filter as chips; nothing ticked means "all". #}
 {% macro choice_fields(name, label, values) -%}
   {% if values | length > 1 %}
-  <details>
-    <summary>{{ label }} <small>({{ t("start.all_if_none") }})</small></summary>
-    {% for value in values %}
-    <label><input type="checkbox" name="{{ name }}" value="{{ value }}"> {{ value }}</label>
-    {% endfor %}
-  </details>
+  <fieldset class="field wide">
+    <legend>{{ label }} <small class="muted">{{ t("start.all_if_none") }}</small></legend>
+    <div class="chips">
+      {% for value in values %}
+      <label class="chip"><input type="checkbox" name="{{ name }}" value="{{ value }}">{{ value }}</label>
+      {% endfor %}
+    </div>
+  </fieldset>
   {% endif %}
 {%- endmacro %}
 
 {% block content %}
-<nav aria-label="breadcrumb">
-  <ul>
-    <li><a href="{{ path('course_list') }}">{{ t("nav.courses") }}</a></li>
-    <li><a href="{{ path('course_detail', course_id=exam.course.id) }}">{{ exam.course.label }}</a></li>
-    <li>{{ exam.title }}</li>
-  </ul>
-</nav>
-<h1>{{ exam.title }}</h1>
+{% set exam_url = path('exam_detail', exam_id=exam.id) %}
+{{ page_head(exam.title, [(t("nav.courses"), path("course_list")), (exam.course.label, path("course_detail", course_id=exam.course_id)), (exam.title, none)]) }}
 
-<dl class="facts">
-  <dt>{{ t("course.questions") }}</dt><dd>{{ question_count }}</dd>
-  <dt>{{ t("exam.max_score") }}</dt><dd>{{ t("common.points", n=max_score | num) }}</dd>
-  <dt>{{ t("course.time_limit") }}</dt><dd>{{ time_limit(exam) }}</dd>
-  <dt>{{ t("course.pass_mark") }}</dt><dd>{{ pass_mark(exam) }}</dd>
-  <dt>{{ t("exam.topics") }}</dt><dd>{{ topics | join(", ") or t("common.none") }}</dd>
-  <dt>{{ t("exam.imported_at") }}</dt><dd>{{ exam.imported_at | dt }}</dd>
-  {% if exam.source_file %}<dt>{{ t("exam.source_file") }}</dt><dd><code>{{ exam.source_file }}</code></dd>{% endif %}
+<dl class="factbar">
+  <div><dt>{{ t("course.questions") }}</dt><dd>{{ question_count }}</dd></div>
+  <div><dt>{{ t("exam.max_score") }}</dt><dd>{{ t("common.points", n=max_score | num) }}</dd></div>
+  <div><dt>{{ t("course.time_limit") }}</dt><dd>{{ time_limit(exam) }}</dd></div>
+  <div><dt>{{ t("course.pass_mark") }}</dt><dd>{{ pass_mark(exam) }}</dd></div>
+  <div class="wide"><dt>{{ t("exam.topics") }}</dt><dd>{{ topics | join(", ") or t("common.none") }}</dd></div>
 </dl>
 
-<section>
+{# ---- Start ---------------------------------------------------------------------------- #}
+<section class="start">
   {% if open_attempt %}
-    <p>{{ t("exam.open_attempt", started=open_attempt.started_at | dt) }}</p>
+  <div class="resume">
+    <p>{{ t("exam.open_attempt", started=open_attempt.started_at | dt) }} <span class="muted">({{ t("mode." ~ open_attempt.mode) }})</span></p>
     <div class="actions">
-      <a class="btn" href="{{ path('attempt_page', attempt_id=open_attempt.id) }}">{{ t("exam.resume") }}</a>
+      <a class="btn" href="{{ path('attempt_page', attempt_id=open_attempt.id) }}">{{ icon("play") }}{{ t("exam.resume") }}</a>
       {{ confirm_form(path('restart_attempt', attempt_id=open_attempt.id), t("exam.restart"), t("exam.restart_confirm"), "btn-quiet") }}
     </div>
-  {% else %}
-  <div class="grid">
-    <article>
-      <header><strong>{{ t("mode.exam") }}</strong></header>
-      <p><small>{{ t("start.exam_hint") }}</small></p>
-      <form method="post" action="{{ path('start_attempt_form', exam_id=exam.id) }}">
-        {{ shuffle_fields() }}
-        <button type="submit">{{ t("exam.start") }}</button>
-      </form>
-    </article>
-    <article>
-      <header><strong>{{ t("mode.practice") }}</strong></header>
-      <form method="post" action="{{ path('start_attempt_form', exam_id=exam.id) }}">
-        <input type="hidden" name="mode" value="practice">
-        {{ feedback_fields() }}
-        {{ choice_fields("topics", t("exam.topics"), topics) }}
-        {{ choice_fields("tags", t("start.tags"), tags) }}
-        {% if starred_count %}
-        <label><input type="checkbox" name="starred_only" value="true"> {{ t("start.starred_only", n=starred_count) }}</label>
-        {% endif %}
-        {{ count_field(question_count) }}
-        {{ shuffle_fields() }}
-        <button type="submit">{{ t("start.practice_submit") }}</button>
-      </form>
-    </article>
-    <article>
-      <header><strong>{{ t("mode.retry_wrong") }}</strong></header>
-      <p><small>{{ t("start.retry_hint", n=pool_retryable, streak=pool_exit_streak) }}</small></p>
-      <form method="post" action="{{ path('start_attempt_form', exam_id=exam.id) }}">
-        <input type="hidden" name="mode" value="retry_wrong">
-        <fieldset {{ "disabled" if not pool_retryable }}>
-          {{ feedback_fields() }}
-          {% if pool_retryable > 1 %}{{ count_field(pool_retryable) }}{% endif %}
-          {{ shuffle_fields() }}
-          <button type="submit">{{ t("start.retry_submit") }}</button>
-        </fieldset>
-      </form>
-    </article>
   </div>
+  {% else %}
+  <div class="segmented" role="radiogroup" aria-label="{{ t('start.title') }}">
+    <input type="radio" name="start-mode" id="start-exam" checked>
+    <label for="start-exam">{{ t("mode.exam") }}</label>
+    <input type="radio" name="start-mode" id="start-practice">
+    <label for="start-practice">{{ t("mode.practice") }}</label>
+    <input type="radio" name="start-mode" id="start-retry">
+    <label for="start-retry">{{ t("mode.retry_wrong") }} <span class="count">{{ pool_retryable }}</span></label>
+  </div>
+
+  <form method="post" action="{{ path('start_attempt_form', exam_id=exam.id) }}" class="start-panel" data-mode="exam">
+    <p class="muted">{{ t("start.exam_hint") }}</p>
+    <div class="fields">{{ shuffle_fields() }}</div>
+    <button type="submit">{{ icon("play") }}{{ t("exam.start") }}</button>
+  </form>
+
+  <form method="post" action="{{ path('start_attempt_form', exam_id=exam.id) }}" class="start-panel" data-mode="practice">
+    <input type="hidden" name="mode" value="practice">
+    <p class="muted">{{ t("start.practice_hint") }}</p>
+    <div class="fields">
+      {{ feedback_fields() }}
+      {{ count_field(question_count) }}
+      {{ choice_fields("topics", t("exam.topics"), topics) }}
+      {{ choice_fields("tags", t("start.tags"), tags) }}
+      {% if filter_counts.starred %}
+      <fieldset class="field">
+        <legend>{{ t("start.selection") }}</legend>
+        <label><input type="checkbox" name="starred_only" value="true"> {{ t("start.starred_only", n=filter_counts.starred) }}</label>
+      </fieldset>
+      {% endif %}
+      {{ shuffle_fields() }}
+    </div>
+    <button type="submit">{{ icon("play") }}{{ t("start.practice_submit") }}</button>
+  </form>
+
+  <form method="post" action="{{ path('start_attempt_form', exam_id=exam.id) }}" class="start-panel" data-mode="retry">
+    <input type="hidden" name="mode" value="retry_wrong">
+    <p class="muted">{{ t("start.retry_hint", n=pool_retryable, streak=pool_exit_streak) if pool_retryable else t("start.retry_empty") }}</p>
+    <fieldset {{ "disabled" if not pool_retryable }}>
+      <div class="fields">
+        {{ feedback_fields() }}
+        {% if pool_retryable > 1 %}{{ count_field(pool_retryable) }}{% endif %}
+        {{ shuffle_fields() }}
+      </div>
+      <button type="submit">{{ icon("rotate-ccw") }}{{ t("start.retry_submit") }}</button>
+    </fieldset>
+  </form>
   {% endif %}
 </section>
 
-<details>
-  <summary>{{ t("questions.title", n=question_count) }}</summary>
-  <p><small>{{ t("questions.hint") }}</small></p>
-  <div class="overflow-auto">
-  <table>
-    <thead><tr><th class="num">#</th><th>{{ t("quiz.question") }}</th><th>{{ t("pool.topic") }}</th><th></th></tr></thead>
-    <tbody>
-      {% for q in questions %}
-      <tr id="question-{{ q.id }}" class="{{ 'disabled' if q.disabled }}">
-        <td class="num">{{ loop.index }}</td>
-        <td>{{ q.question | md_inline }}</td>
-        <td>{{ q.topic }}</td>
-        <td>{{ flag_forms(q, path('exam_detail', exam_id=exam.id) ~ '#question-' ~ q.id) }}</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-  </div>
-</details>
-
-{% if pool %}
-<details>
-  <summary>{{ t("pool.title", n=pool | length) }}</summary>
-  <div class="overflow-auto">
-  <table>
-    <thead>
-      <tr><th>{{ t("quiz.question") }}</th><th>{{ t("pool.topic") }}</th><th>{{ t("pool.streak") }}</th><th></th></tr>
-    </thead>
-    <tbody>
-      {% for q in pool %}
-      <tr>
-        <td>{{ q.question | md_inline }}{% if q.disabled %} <small>{{ t("pool.disabled") }}</small>{% endif %}</td>
-        <td>{{ q.topic }}</td>
-        <td class="num">{{ q.pool_streak }}/{{ pool_exit_streak }}</td>
-        <td>
-          <form method="post" action="{{ path('remove_from_pool_form', question_id=q.id) }}">
-            <button type="submit" class="btn-quiet">{{ t("pool.remove") }}</button>
-          </form>
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-  </div>
-</details>
-{% endif %}
-
-{% if history %}
-<h2>{{ t("stats.title") }}</h2>
-<p><small>{{ t("stats.hint") }}</small></p>
-<div class="grid stats">
-  {% if topic_stats %}
-  <section><h3>{{ t("stats.topics") }}</h3>{{ topic_bars(topic_stats) }}</section>
-  {% endif %}
-  {% if chart %}
-  <section><h3>{{ t("stats.history") }}</h3>{{ line_chart(chart, t("stats.history")) }}</section>
-  {% endif %}
-</div>
-{% endif %}
-
-<h2>{{ t("history.title") }}</h2>
-{% if history %}
-<div class="overflow-auto">
-<table>
-  <thead>
-    <tr>
-      <th>{{ t("history.date") }}</th>
-      <th>{{ t("history.mode") }}</th>
-      <th>{{ t("history.score") }}</th>
-      <th class="num">{{ t("history.duration") }}</th>
-      <th></th>
-    </tr>
-  </thead>
-  <tbody>
-    {% for attempt in history %}
-    <tr>
-      <td><a href="{{ path('attempt_review', attempt_id=attempt.id) }}">{{ attempt.finished_at | dt }}</a></td>
-      <td>{{ t("mode." ~ attempt.mode) }}</td>
-      <td>{{ attempt_result(attempt) }}</td>
-      <td class="num">{{ attempt.duration_seconds | duration }}</td>
-      <td>{{ confirm_form(path('delete_attempt', attempt_id=attempt.id), t("history.delete"), t("history.delete_confirm")) }}</td>
-    </tr>
+{# ---- Tabs: history, statistics, questions ---------------------------------------------- #}
+{% set active_tab = tab or ("history" if history else "questions") %}
+<div class="tabs">
+  <div class="tab-bar" role="tablist">
+    {% for name in tabs %}
+    <input type="radio" name="exam-tab" id="tab-{{ name }}" value="{{ name }}" data-url-param="tab" {{ "checked" if name == active_tab }}>
+    <label for="tab-{{ name }}" role="tab">{{ t("tab." ~ name, n=question_count) }}</label>
     {% endfor %}
-  </tbody>
-</table>
-</div>
-{% else %}
-<p>{{ t("history.empty") }}</p>
-{% endif %}
+  </div>
 
-<hr>
-<div class="actions">
-  <a class="btn-quiet" href="{{ path('export_exam_file', exam_id=exam.id) }}" download>{{ t("exam.export") }}</a>
-  {{ confirm_form(path('reset_exam_learning', exam_id=exam.id), t("learning.reset"), t("learning.reset_confirm"), "btn-quiet") }}
-  {% if history %}{{ confirm_form(path('delete_exam_history', exam_id=exam.id), t("history.delete_all"), t("history.delete_all_confirm")) }}{% endif %}
+  <section class="tab-panel" data-tab="history">
+    {% if history %}
+    <div class="overflow-auto">
+    <table>
+      <thead>
+        <tr>
+          <th>{{ t("history.date") }}</th>
+          <th>{{ t("history.mode") }}</th>
+          <th>{{ t("history.score") }}</th>
+          <th class="num">{{ t("history.duration") }}</th>
+          <th><span class="visually-hidden">{{ t("history.delete") }}</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for attempt in history %}
+        <tr>
+          <td><a href="{{ path('attempt_review', attempt_id=attempt.id) }}">{{ attempt.finished_at | dt }}</a></td>
+          <td>{{ t("mode." ~ attempt.mode) }}</td>
+          <td>{{ attempt_result(attempt) }}</td>
+          <td class="num">{{ attempt.duration_seconds | duration }}</td>
+          <td class="num">{{ confirm_form(path('delete_attempt', attempt_id=attempt.id), t("history.delete"), t("history.delete_confirm"), "btn-quiet") }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% else %}
+    <p class="muted">{{ t("history.empty") }}</p>
+    {% endif %}
+  </section>
+
+  <section class="tab-panel" data-tab="stats">
+    {% if history %}
+    <p class="muted"><small>{{ t("stats.hint") }}</small></p>
+    <div class="grid stats">
+      {% if topic_stats %}
+      <section><h3>{{ t("stats.topics") }}</h3>{{ topic_bars(topic_stats) }}</section>
+      {% endif %}
+      {% if chart %}
+      <section><h3>{{ t("stats.history") }}</h3>{{ line_chart(chart, t("stats.history")) }}</section>
+      {% endif %}
+    </div>
+    {% else %}
+    <p class="muted">{{ t("stats.empty") }}</p>
+    {% endif %}
+  </section>
+
+  <section class="tab-panel questions" data-tab="questions">
+    <div class="filter-chips" role="radiogroup" aria-label="{{ t('questions.filter') }}">
+      {% for name, count in filter_counts.items() %}
+      <input type="radio" name="question-filter" id="filter-{{ name }}" value="{{ name }}" data-url-param="filter" {{ "checked" if name == question_filter }}>
+      <label for="filter-{{ name }}" class="chip">{{ t("questions.filter." ~ name) }} <span class="count">{{ count }}</span></label>
+      {% endfor %}
+    </div>
+    <ol class="qlist">
+      {% for q in questions %}
+      {# Fallback without JS; shell.js puts the current tab and filter into `next`. #}
+      {% set here = exam_url ~ "?tab=questions&filter=" ~ question_filter ~ "#question-" ~ q.id %}
+      <li id="question-{{ q.id }}" {{ "data-starred" if q.starred }} {{ "data-pool" if q.in_wrong_pool }} {{ "data-skipped" if q.disabled }}>
+        <span class="qnum">{{ loop.index }}</span>
+        <span class="qtext">{{ q.question | plain }}</span>
+        <span class="qtopic">{{ q.topic }}</span>
+        {{ question_state(q, pool_exit_streak) }}
+        {{ question_menu(q, here) }}
+      </li>
+      {% endfor %}
+    </ol>
+    <p class="muted qlist-empty">{{ t("questions.empty_filter") }}</p>
+  </section>
 </div>
-{{ confirm_form(path('delete_exam', exam_id=exam.id), t("exam.delete"), delete_confirm) }}
+
+{# ---- Management ------------------------------------------------------------------------ #}
+<section class="danger-zone">
+  <h2>{{ t("manage.title") }}</h2>
+  <p class="muted"><small>
+    {% if exam.source_file %}{{ t("exam.imported_from", date=exam.imported_at | dt, file=exam.source_file) }}{% else %}{{ t("exam.imported", date=exam.imported_at | dt) }}{% endif %}
+  </small></p>
+  <div class="actions">
+    <a class="btn-quiet" href="{{ path('export_exam_file', exam_id=exam.id) }}" download>{{ icon("download") }}{{ t("exam.export") }}</a>
+    {{ confirm_form(path('reset_exam_learning', exam_id=exam.id), t("learning.reset"), t("learning.reset_confirm"), "btn-quiet") }}
+    {% if history %}{{ confirm_form(path('delete_exam_history', exam_id=exam.id), t("history.delete_all"), t("history.delete_all_confirm")) }}{% endif %}
+    {{ confirm_form(path('delete_exam', exam_id=exam.id), t("exam.delete"), delete_confirm) }}
+  </div>
+</section>
 {% endblock %}

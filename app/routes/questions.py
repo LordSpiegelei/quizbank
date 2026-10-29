@@ -40,10 +40,15 @@ def set_flag_api(session: SessionDep, question_id: int, flag: Flag, body: FlagIn
 
 
 @router.post("/questions/{question_id}/pool/remove")
-def remove_from_pool_form(request: Request, session: SessionDep, question_id: int):
+def remove_from_pool_form(
+    request: Request,
+    session: SessionDep,
+    question_id: int,
+    next_url: Annotated[str, Form(alias="next")] = "",
+):
     question = get_or_404(session, Question, question_id)
     remove_from_pool(session, question)
-    return redirect(request, "exam_detail", exam_id=question.exam_id)
+    return redirect_back(request, next_url, "exam_detail", exam_id=question.exam_id)
 
 
 @router.post("/exams/{exam_id}/learning/reset")

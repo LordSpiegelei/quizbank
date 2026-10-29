@@ -1,6 +1,7 @@
 """Local learning state on questions (CLAUDE.md §6): stars, disabled flags and the wrong pool.
 The importer never touches it; resets are separate from deleting the history."""
 
+from collections.abc import Callable, Iterable
 from typing import Literal, get_args
 
 from sqlalchemy import delete, update
@@ -10,7 +11,22 @@ from app.models import Attempt, Question
 from app.scoring import POOL_OUT
 
 Flag = Literal["starred", "disabled"]
-FLAGS: tuple[Flag, ...] = get_args(Flag)  # labels: locale keys flag.<name>.on / .off
+FLAGS: tuple[Flag, ...] = get_args(Flag)  # texts: flag.<name>.set / .unset / .state
+
+# The question list's filters on the exam page, in display order.
+QuestionFilter = Literal["all", "starred", "pool", "skipped"]
+_FILTERS: dict[str, Callable[[Question], bool]] = {
+    "all": lambda q: True,
+    "starred": lambda q: q.starred,
+    "pool": lambda q: q.in_wrong_pool,
+    "skipped": lambda q: q.disabled,
+}
+
+
+def filter_counts(questions: Iterable[Question]) -> dict[str, int]:
+    """How many questions each filter shows."""
+    questions = list(questions)
+    return {name: sum(map(keep, questions)) for name, keep in _FILTERS.items()}
 
 
 def set_flag(session: Session, question: Question, flag: Flag, value: bool) -> None:
