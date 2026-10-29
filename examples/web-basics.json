@@ -1,0 +1,136 @@
+{
+  "format_version": 1,
+  "course": "Example: Web Fundamentals",
+  "title": "Practice exam 1",
+  "time_limit_minutes": 15,
+  "pass_mark": 6,
+  "multiple_scoring": "partial",
+  "questions": [
+    {
+      "id": "web-p1-001",
+      "type": "single",
+      "topic": "HTTP",
+      "tags": ["Status codes"],
+      "question": "Which HTTP status code means that the requested resource was **not found**?",
+      "options": ["200", "301", "404", "500"],
+      "correct": [2],
+      "explanation": "`404 Not Found` says the server has no resource at that URL.",
+      "option_explanations": [
+        "`200 OK` means the request succeeded.",
+        "`301 Moved Permanently` redirects to a new URL.",
+        "Correct.",
+        "`500 Internal Server Error` means the server failed while handling the request."
+      ],
+      "source": "MDN: HTTP response status codes"
+    },
+    {
+      "id": "web-p1-002",
+      "type": "single",
+      "topic": "HTTP",
+      "tags": ["Methods"],
+      "question": "Which HTTP method is meant for **retrieving** a resource without changing anything on the server?",
+      "options": ["GET", "POST", "PATCH", "DELETE"],
+      "correct": [0],
+      "explanation": "GET is a *safe* method: it only reads.",
+      "option_explanations": [
+        "Correct.",
+        "POST submits data and usually creates or changes something.",
+        "PATCH applies a partial change to a resource.",
+        "DELETE removes a resource."
+      ],
+      "source": "MDN: HTTP request methods"
+    },
+    {
+      "id": "web-p1-003",
+      "type": "multiple",
+      "topic": "HTTP",
+      "tags": ["Methods", "Idempotency"],
+      "question": "Which of these methods are **idempotent** by definition (repeating the request has the same effect as sending it once)?",
+      "options": ["GET", "PUT", "DELETE", "POST"],
+      "correct": [0, 1, 2],
+      "points": 2,
+      "explanation": "GET, PUT and DELETE are idempotent. POST is not: sending it twice can create two resources.",
+      "source": "MDN: Idempotent"
+    },
+    {
+      "id": "web-p1-004",
+      "type": "single",
+      "topic": "HTML",
+      "tags": ["Semantics"],
+      "question": "Which element marks up the **main heading** of a page's content?",
+      "options": ["`<head>`", "`<h1>`", "`<header>`", "`<title>`"],
+      "correct": [1],
+      "explanation": "`<h1>` is the top-level heading in the document outline.",
+      "option_explanations": [
+        "`<head>` holds metadata and is not displayed.",
+        "Correct.",
+        "`<header>` is a container for introductory content, not a heading itself.",
+        "`<title>` sets the text shown in the browser tab."
+      ]
+    },
+    {
+      "id": "web-p1-005",
+      "type": "single",
+      "topic": "CSS",
+      "tags": ["Box model"],
+      "question": "Which CSS property sets the space **between an element's content and its border**?",
+      "options": ["`margin`", "`padding`", "`gap`", "`outline`"],
+      "correct": [1],
+      "explanation": "In the box model, padding sits inside the border and margin outside it.",
+      "option_explanations": [
+        "`margin` is the space outside the border.",
+        "Correct.",
+        "`gap` is the space between items in flex and grid layouts.",
+        "`outline` is drawn outside the border and takes up no space."
+      ]
+    },
+    {
+      "id": "web-p1-006",
+      "type": "single",
+      "topic": "CSS",
+      "tags": ["Specificity"],
+      "question": "Given these rules:\n\n```css\np      { color: blue; }\n.note  { color: green; }\n#intro { color: red; }\n```\n\nWhat colour is the text of `<p id=\"intro\" class=\"note\">`?",
+      "options": ["blue", "green", "red", "the browser default"],
+      "correct": [2],
+      "explanation": "An ID selector is more specific than a class selector, which is more specific than a type selector.",
+      "source": "MDN: Specificity"
+    },
+    {
+      "id": "web-p1-007",
+      "type": "multiple",
+      "topic": "Accessibility",
+      "tags": ["Screen readers"],
+      "question": "Which practices help people who use a **screen reader**?",
+      "options": [
+        "Giving informative images a meaningful `alt` text",
+        "Using a `<div>` with a click handler instead of a `<button>`",
+        "Connecting form fields to a `<label>`",
+        "Showing an error only by turning the field red"
+      ],
+      "correct": [0, 2],
+      "points": 2,
+      "explanation": "Alt texts and labels give assistive technology the information it reads out.",
+      "option_explanations": [
+        "Correct: the alt text is read instead of the image.",
+        "A `<div>` is neither focusable nor announced as a button; use `<button>`.",
+        "Correct: the label is announced when the field gets focus.",
+        "Colour alone is not announced; add a text message as well."
+      ]
+    },
+    {
+      "id": "web-p1-008",
+      "type": "open",
+      "topic": "Case study",
+      "tags": ["Performance"],
+      "scenario": "A small bakery's website loads very slowly on phones. The home page shows six photos straight from the camera (4000 × 3000 px, about 5 MB each), all of them loaded immediately, even those far down the page.",
+      "question": "Suggest measures that make the home page load faster, and explain why each one helps.",
+      "points": 4,
+      "model_answer": "- **Resize and compress** the photos to the size they are displayed at: this cuts the download from about 30 MB to a few hundred KB.\n- Serve **modern formats** (WebP/AVIF) and **responsive images** (`srcset`/`sizes`), so phones get small files.\n- **Lazy-load** images below the fold (`loading=\"lazy\"`), so only what is visible loads first.",
+      "rubric": [
+        { "criterion": "Resizes and compresses the images, with the reason (much smaller download)", "points": 2 },
+        { "criterion": "Mentions modern formats or responsive images (srcset)", "points": 1 },
+        { "criterion": "Mentions lazy loading for images further down the page", "points": 1 }
+      ]
+    }
+  ]
+}
