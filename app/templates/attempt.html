@@ -12,7 +12,7 @@
 <div x-data="quiz" x-cloak>
   <div class="quiz-bar">
     <strong>{{ attempt.exam.title }} <small>({{ t("mode." ~ attempt.mode) }})</small></strong>
-    <span>{{ t("quiz.question") }} <span x-text="index + 1"></span> {{ t("quiz.of") }} <span x-text="questions.length"></span></span>
+    <span>{{ t("quiz.question") }} <span x-text="pos + 1"></span> {{ t("quiz.of") }} <span x-text="questions.length"></span></span>
     <span class="timer" :class="{ low: remaining !== null && remaining < 300 }">
       <span x-text="remaining !== null ? '{{ t('quiz.time_left') }}' : '{{ t('quiz.elapsed') }}'"></span>
       <strong x-text="clock"></strong>
@@ -81,7 +81,7 @@
   </article>
 
   <div class="quiz-nav">
-    <button class="secondary" @click="go(index - 1)" :disabled="index === 0">{{ t("quiz.prev") }}</button>
+    <button class="secondary" @click="go(pos - 1)" :disabled="pos === 0">{{ t("quiz.prev") }}</button>
     <small class="save-status" x-text="status" aria-live="polite"></small>
     <button x-show="!canAdvance" @click="primary()">{{ t("quiz.check") }}</button>
     <button x-show="canAdvance && !isLast" @click="primary()">{{ t("quiz.next") }}</button>
@@ -94,7 +94,7 @@
     <summary>{{ t("quiz.overview") }}</summary>
     <div class="question-grid">
       <template x-for="(q, i) in questions" :key="q.id">
-        <button class="outline" :class="{ answered: isAnswered(q), current: i === index, [q.solution?.status]: !!q.solution }"
+        <button class="outline" :class="{ answered: isAnswered(q), current: i === pos, [q.solution?.status]: !!q.solution }"
                 @click="go(i)" x-text="i + 1"></button>
       </template>
     </div>

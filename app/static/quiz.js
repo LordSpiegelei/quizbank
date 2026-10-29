@@ -10,18 +10,20 @@ document.addEventListener("alpine:init", () => {
       feedback: data.feedback, // "instant": a Prüfen button reveals each solution
       remaining: data.remaining, // seconds, from the server's deadline; null without time limit
       elapsed: data.elapsed, // seconds since the start; shown when there is no countdown
-      index: 0,
+      // Current question. Not named `index`: inside x-for loops Alpine's scope shadows that
+      // name with the loop index, which broke the `current` getter in short attempts.
+      pos: 0,
       status: "",
       pending: 0,
       queue: Promise.resolve(), // saves run one after another so they arrive in order
       textTimers: {},
 
       get current() {
-        return this.questions[this.index];
+        return this.questions[this.pos];
       },
 
       get isLast() {
-        return this.index === this.questions.length - 1;
+        return this.pos === this.questions.length - 1;
       },
 
       // With instant feedback, each question is checked before moving on.
@@ -40,7 +42,7 @@ document.addEventListener("alpine:init", () => {
       init() {
         // Resume at the first unanswered question.
         const first = this.questions.findIndex((q) => !this.isAnswered(q));
-        this.index = first === -1 ? 0 : first;
+        this.pos = first === -1 ? 0 : first;
         if (this.remaining !== null) {
           const end = Date.now() + this.remaining * 1000;
           const tick = () => {
@@ -66,7 +68,7 @@ document.addEventListener("alpine:init", () => {
       primary() {
         if (!this.canAdvance) this.check(this.current);
         else if (this.isLast) this.submit();
-        else this.go(this.index + 1);
+        else this.go(this.pos + 1);
       },
 
       // 1–9 or A–J pick an option, Enter = main button, ←/→ move, S stars.
@@ -84,7 +86,7 @@ document.addEventListener("alpine:init", () => {
           if (["BUTTON", "A", "SUMMARY"].includes(target.tagName)) return; // let it click itself
           this.primary();
         } else if (key === "ArrowRight" || key === "ArrowLeft") {
-          this.go(this.index + (key === "ArrowRight" ? 1 : -1));
+          this.go(this.pos + (key === "ArrowRight" ? 1 : -1));
         } else if (key.toLowerCase() === "s") {
           if (q.flags) this.setFlag(q, "starred", !q.flags.starred);
         } else {
@@ -119,7 +121,7 @@ document.addEventListener("alpine:init", () => {
       go(i) {
         if (i < 0 || i >= this.questions.length) return;
         this.flushText();
-        this.index = i;
+        this.pos = i;
         window.scrollTo({ top: 0 });
       },
 
