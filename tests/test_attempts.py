@@ -12,7 +12,6 @@ from app.attempts import (
     finalize_expired,
     finish,
     open_attempt,
-    remove_from_pool,
     restart,
     reveal,
     save_answer,
@@ -20,6 +19,7 @@ from app.attempts import (
     shuffle_options,
     start_attempt,
 )
+from app.learning import delete_history, remove_from_pool, reset_learning_state, set_flag
 from app.models import Attempt, Exam, Question
 from tests.factories import import_file, open_q, single
 
@@ -333,3 +333,41 @@ def test_remove_from_pool(session) -> None:
     question.in_wrong_pool, question.pool_streak = True, 1
     remove_from_pool(session, question)
     assert (question.in_wrong_pool, question.pool_streak) == (False, 0)
+
+
+def test_starred_only(session) -> None:
+    exam_row = _filter_exam(session)
+    exam_row.questions[1].starred = exam_row.questions[3].starred = True
+    options = StartOptions(mode="practice", starred_only=True)
+    assert _ids(start_attempt(session, exam_row, options, now=T0)) == ["b", "d"]
+    assert StartOptions(mode="exam", starred_only=True).starred_only is False
+
+
+def test_toggle_and_reset_learning_state(session) -> None:
+    exam_row, other = _filter_exam(session), _exam(session, single(), title="Andere")
+    question = exam_row.questions[0]
+    set_flag(session, question, "starred", True)
+    set_flag(session, question, "disabled", True)
+    question.in_wrong_pool, question.pool_streak = True, 1
+    other.questions[0].starred = True
+    session.commit()
+
+    reset_learning_state(session, exam_row.id)
+    session.expire_all()
+    assert (question.starred, question.disabled, question.in_wrong_pool) == (False,) * 3
+    assert question.pool_streak == 0
+    assert other.questions[0].starred  # other exams keep theirs
+
+    reset_learning_state(session)
+    session.expire_all()
+    assert not other.questions[0].starred
+
+
+def test_delete_history_keeps_open_attempt_and_pool(session) -> None:
+    exam_row = _two_singles(session)
+    finish(session, start_attempt(session, exam_row, now=T0), now=T0)
+    running = start_attempt(session, exam_row, now=T0)
+    delete_history(session, exam_row.id)
+    session.expire_all()
+    assert session.exec(select(Attempt)).all() == [running]
+    assert exam_row.questions[0].in_wrong_pool  # filled by the deleted attempt, kept

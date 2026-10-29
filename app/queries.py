@@ -5,7 +5,13 @@ from collections.abc import Sequence
 from sqlalchemy import and_
 from sqlmodel import Session, col, func, select
 
-from app.models import Attempt
+from app.models import Attempt, Question
+
+
+def live_questions(session: Session, attempt: Attempt) -> dict[int, Question]:
+    """The attempt's questions that still exist, by id, in one query instead of one each."""
+    ids = [a.question_id for a in attempt.answers if a.question_id is not None]
+    return {q.id: q for q in session.exec(select(Question).where(col(Question.id).in_(ids)))}
 
 
 def finished_attempts(session: Session, exam_id: int) -> Sequence[Attempt]:

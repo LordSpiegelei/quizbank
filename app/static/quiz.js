@@ -152,6 +152,16 @@ document.addEventListener("alpine:init", () => {
         }
       },
 
+      // Stars and disabled flags change the question itself, not this attempt.
+      async setFlag(q, flag, value) {
+        const response = await fetch(q.flagUrls[flag], {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ value }),
+        });
+        if (response.ok) q.flags[flag] = value;
+      },
+
       submit() {
         const open = this.questions.filter((q) => !this.isAnswered(q)).length;
         const message = open

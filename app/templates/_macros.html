@@ -34,3 +34,20 @@
     <button type="submit" class="{{ button_class }}">{{ label }}</button>
   </form>
 {%- endmacro %}
+
+
+{# Star and disable toggles for a live question; `next` is where the form returns to. #}
+{% macro flag_forms(question, next) -%}
+  <span class="flags">
+    {% for flag in flags %}
+    {% set on = question[flag] %}
+    <form method="post" action="{{ path('set_flag_form', question_id=question.id, flag=flag) }}">
+      <input type="hidden" name="value" value="{{ 'false' if on else 'true' }}">
+      <input type="hidden" name="next" value="{{ next }}">
+      <button type="submit" class="flag {{ 'on' if on }}" aria-pressed="{{ 'true' if on else 'false' }}">
+        {{ t("flag." ~ flag ~ (".on" if on else ".off")) }}
+      </button>
+    </form>
+    {% endfor %}
+  </span>
+{%- endmacro %}

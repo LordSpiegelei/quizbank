@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_macros.html" import confirm_form %}
 {% block content %}
 <h1>{{ t("courses.title") }}</h1>
 
@@ -48,4 +49,8 @@
     </fieldset>
   </form>
 </section>
+{% if courses %}
+<hr>
+{{ confirm_form(path('reset_all_learning'), t("learning.reset_all"), t("learning.reset_all_confirm"), "secondary outline") }}
+{% endif %}
 {% endblock %}
