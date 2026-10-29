@@ -61,6 +61,11 @@ fieldset:disabled label.option { cursor: default; opacity: 1; }
 /* Star / disable toggles */
 .flags { display: inline-flex; gap: 0.5rem; flex-wrap: wrap; vertical-align: middle; }
 .flags form { margin: 0; }
-button.flag { padding: 0.15rem 0.6rem; margin: 0; font-size: 0.85em; --pico-background-color: transparent; --pico-color: var(--pico-muted-color); --pico-border-color: var(--pico-muted-border-color); }
+button.flag, button.theme-toggle { margin: 0; font-size: 0.85em; --pico-background-color: transparent; --pico-color: var(--pico-muted-color); --pico-border-color: var(--pico-muted-border-color); }
+button.flag { padding: 0.15rem 0.6rem; }
 button.flag.on { --pico-color: var(--pico-primary); --pico-border-color: var(--pico-primary); }
 tr.disabled td:not(:last-child) { opacity: 0.55; }
+
+/* Theme switch and keyboard hint */
+button.theme-toggle { padding: 0.25rem 0.75rem; }
+.keys { color: var(--pico-muted-color); text-align: center; }

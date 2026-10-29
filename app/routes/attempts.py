@@ -37,6 +37,8 @@ QUIZ_TEXT_KEYS = (
     "quiz.finish_confirm",
     "quiz.finish_confirm_unanswered",
     "quiz.reveal_failed",
+    "quiz.keys",
+    "quiz.keys_options",
 )
 
 

@@ -20,6 +20,8 @@ def test_empty_course_list(client) -> None:
 def test_static_assets_are_served(client) -> None:
     assert client.get("/static/vendor/pico.min.css").status_code == 200
     assert client.get("/static/app.css").status_code == 200
+    assert client.get("/static/theme.js").status_code == 200
+    assert 'id="theme-toggle"' in client.get("/").text
 
 
 def test_upload_valid_file(client) -> None:

@@ -7,6 +7,9 @@
   <title>{% block title %}{{ t("app.name") }}{% endblock %}</title>
   <link rel="stylesheet" href="{{ url_for('static', path='vendor/pico.min.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', path='app.css') }}">
+  {# Apply the saved theme before the first paint (no flash); theme.js handles the switch. #}
+  <script>try { const t = localStorage.getItem("theme"); if (t) document.documentElement.dataset.theme = t; } catch {}</script>
+  <script defer src="{{ url_for('static', path='theme.js') }}"></script>
   {% block head %}{% endblock %}
 </head>
 <body>
@@ -16,6 +19,11 @@
       <ul>
         <li><a href="{{ path('course_list') }}">{{ t("nav.courses") }}</a></li>
         <li><a href="{{ path('import_form') }}">{{ t("nav.import") }}</a></li>
+        <li>
+          <button type="button" id="theme-toggle" class="theme-toggle"
+                  data-auto="{{ t('theme.auto') }}" data-light="{{ t('theme.light') }}"
+                  data-dark="{{ t('theme.dark') }}">{{ t("theme.auto") }}</button>
+        </li>
       </ul>
     </nav>
   </header>

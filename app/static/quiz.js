@@ -1,5 +1,6 @@
 // Exam runner (Alpine.js): one question at a time, every change is saved immediately.
 // Data comes from the #quiz-data JSON block rendered by app/routes/attempts.py.
+const LETTERS = "ABCDEFGHIJ"; // option labels and shortcuts; questions have at most 10 options
 document.addEventListener("alpine:init", () => {
   Alpine.data("quiz", () => {
     const data = JSON.parse(document.getElementById("quiz-data").textContent);
@@ -55,13 +56,60 @@ document.addEventListener("alpine:init", () => {
           const start = Date.now() - this.elapsed * 1000;
           setInterval(() => (this.elapsed = Math.round((Date.now() - start) / 1000)), 1000);
         }
+        window.addEventListener("keydown", (event) => this.onKey(event));
         window.addEventListener("beforeunload", (event) => {
           if (this.pending) event.preventDefault();
         });
       },
 
+      // What the main button does right now: check (instant feedback), next or submit.
+      primary() {
+        if (!this.canAdvance) this.check(this.current);
+        else if (this.isLast) this.submit();
+        else this.go(this.index + 1);
+      },
+
+      // 1–9 or A–J pick an option, Enter = main button, ←/→ move, S stars.
+      onKey(event) {
+        if (event.ctrlKey || event.metaKey || event.altKey) return;
+        const target = event.target;
+        if (target.tagName === "TEXTAREA" || target.isContentEditable) return; // typing an answer
+        const q = this.current;
+        const key = event.key;
+        const option = /^[1-9]$/.test(key) ? Number(key) - 1 : this.letterIndex(key);
+
+        if (option >= 0) {
+          if (q.type !== "open" && option < q.options.length) this.toggle(option);
+        } else if (key === "Enter") {
+          if (["BUTTON", "A", "SUMMARY"].includes(target.tagName)) return; // let it click itself
+          this.primary();
+        } else if (key === "ArrowRight" || key === "ArrowLeft") {
+          this.go(this.index + (key === "ArrowRight" ? 1 : -1));
+        } else if (key.toLowerCase() === "s") {
+          if (q.flags) this.setFlag(q, "starred", !q.flags.starred);
+        } else {
+          return;
+        }
+        event.preventDefault();
+      },
+
       letter(i) {
-        return String.fromCharCode(65 + i);
+        return LETTERS[i];
+      },
+
+      letterIndex(key) {
+        return key.length === 1 ? LETTERS.indexOf(key.toUpperCase()) : -1;
+      },
+
+      // The shortcut hint, fitted to the current question's options.
+      get keyHint() {
+        const n = this.current.type === "open" ? 0 : this.current.options.length;
+        const pick = n
+          ? this.texts["quiz.keys_options"]
+              .replace("{n}", Math.min(n, 9))
+              .replace("{letter}", this.letter(n - 1))
+          : "";
+        return [pick, this.texts["quiz.keys"]].filter(Boolean).join(" · ");
       },
 
       isAnswered(q) {
