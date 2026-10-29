@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_macros.html" import attempt_result, confirm_form, flag_forms, pass_mark, time_limit %}
+{% from "_macros.html" import attempt_result, confirm_form, flag_forms, line_chart, pass_mark, time_limit, topic_bars %}
 {% block title %}{{ exam.title }} – {{ super() }}{% endblock %}
 {% macro shuffle_fields() -%}
   <fieldset>
@@ -148,6 +148,19 @@
   </table>
   </div>
 </details>
+{% endif %}
+
+{% if history %}
+<h2>{{ t("stats.title") }}</h2>
+<p><small>{{ t("stats.hint") }}</small></p>
+<div class="grid stats">
+  {% if topic_stats %}
+  <section><h3>{{ t("stats.topics") }}</h3>{{ topic_bars(topic_stats) }}</section>
+  {% endif %}
+  {% if chart %}
+  <section><h3>{{ t("stats.history") }}</h3>{{ line_chart(chart, t("stats.history")) }}</section>
+  {% endif %}
+</div>
 {% endif %}
 
 <h2>{{ t("history.title") }}</h2>

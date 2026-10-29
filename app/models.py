@@ -136,6 +136,11 @@ class Attempt(SQLModel, table=True):
     exam: Exam = Relationship(back_populates="attempts")
     answers: list["Answer"] = _children("attempt", order_by="Answer.position")
 
+    @property
+    def percent(self) -> float:
+        """Score as a percentage of the maximum (0 for an attempt without points)."""
+        return 100 * (self.score or 0) / self.max_score if self.max_score else 0.0
+
 
 class Answer(SQLModel, table=True):
     """One row per question in an attempt, created when the attempt starts."""
