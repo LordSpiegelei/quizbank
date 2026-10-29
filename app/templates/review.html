@@ -72,7 +72,7 @@
       <summary>{{ t("case.copy_title") }}</summary>
       <p><small>{{ t("case.copy_hint") }}</small></p>
       <textarea readonly rows="10">{% include "case_text.txt" %}</textarea>
-      <button type="button" class="secondary" data-done="{{ t('case.copied') }}"
+      <button type="button" class="btn-quiet" data-done="{{ t('case.copied') }}"
               onclick="navigator.clipboard.writeText(this.previousElementSibling.value).then(() => this.textContent = this.dataset.done)">{{ t("case.copy") }}</button>
     </details>
   {% else %}

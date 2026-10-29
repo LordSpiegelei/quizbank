@@ -17,10 +17,20 @@ def test_empty_course_list(client) -> None:
     assert "Noch keine Kurse" in response.text
 
 
+def _main(page: str) -> str:
+    """The page content without the sidebar, which lists every course."""
+    return page.split('<main class="main">', 1)[1]
+
+
 def test_static_assets_are_served(client) -> None:
-    assert client.get("/static/vendor/pico.min.css").status_code == 200
-    assert client.get("/static/app.css").status_code == 200
-    assert client.get("/static/theme.js").status_code == 200
+    for asset in (
+        "app.css",
+        "icons.svg",
+        "vendor/fonts/atkinson-hyperlegible-next.woff2",
+        "vendor/fonts/atkinson-hyperlegible-mono.woff2",
+    ):
+        assert client.get(f"/static/{asset}").status_code == 200, asset
+    assert client.get("/static/shell.js").status_code == 200
     assert 'id="theme-toggle"' in client.get("/").text
 
 
@@ -93,10 +103,11 @@ def test_last_result_and_recent_sort(client) -> None:
         session.commit()
         beta_id = beta_exam.course_id
 
-    by_name = client.get("/").text
+    by_name = _main(client.get("/").text).split("Alle Kurse")[1]
     assert by_name.index("Alpha") < by_name.index("Beta")
-    by_recent = client.get("/?sort=recent").text
+    by_recent = _main(client.get("/?sort=recent").text).split("Alle Kurse")[1]
     assert by_recent.index("Beta") < by_recent.index("Alpha")
+    assert "Zuletzt geübt" in client.get("/").text  # Beta's exam is in the recent list
 
     assert "bestanden" in client.get(f"/courses/{beta_id}").text
 
@@ -104,7 +115,7 @@ def test_last_result_and_recent_sort(client) -> None:
 def test_search_is_case_insensitive_with_umlauts(client) -> None:
     client.post("/courses", data={"name": "Ökonomie"})
     client.post("/courses", data={"name": "Statistik"})
-    page = client.get("/?q=ökon").text
+    page = _main(client.get("/?q=ökon").text)
     assert "Ökonomie" in page
     assert "Statistik" not in page
     assert "Kein Kurs passt" in client.get("/?q=xyz").text
@@ -228,3 +239,16 @@ def test_export_download(client) -> None:
     assert "filename*=UTF-8''Mein%20Export.json" in response.headers["content-disposition"]
     assert '"question": "Ä?"' in response.text
     assert "Als JSON exportieren" in client.get(f"/exams/{exam_id}").text
+
+
+def test_sidebar_lists_courses(client) -> None:
+    _upload(client, ("a.json", exam(course="Beta")), ("b.json", exam(course="Alpha", title="X")))
+    client.post("/courses", data={"name": "Leer"})
+    page = client.get("/import").text
+    sidebar = page.split('<nav class="sidebar"', 1)[1].split("</nav>", 1)[0]
+    assert sidebar.index("Alpha") < sidebar.index("Beta") < sidebar.index("Leer")
+    assert 'placeholder="Kurs finden"' in sidebar
+    with _db(client) as session:
+        alpha = session.exec(select(Course).where(Course.name == "Alpha")).one()
+    course_page = client.get(f"/courses/{alpha.id}").text
+    assert f'href="/courses/{alpha.id}" aria-current=page' in course_page

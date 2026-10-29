@@ -9,7 +9,7 @@ from app.db import SessionDep, get_or_404
 from app.forms import FormError, optional_number
 from app.importer import comes_back_on_restart
 from app.models import Attempt, Course, Exam, Question
-from app.queries import last_finished_attempts
+from app.queries import last_finished_attempts, recent_exams
 from app.templating import redirect, render
 
 router = APIRouter()
@@ -51,7 +51,15 @@ def _list_page(
         {"course": course, "exam_count": count, "last_practiced": last}
         for course, count, last in session.exec(stmt)
     ]
-    return render(request, "courses.html", courses=courses, q=q, sort=sort, **extra)
+    return render(
+        request,
+        "courses.html",
+        courses=courses,
+        recent=[] if q else recent_exams(session),
+        q=q,
+        sort=sort,
+        **extra,
+    )
 
 
 @router.get("/", response_class=HTMLResponse)

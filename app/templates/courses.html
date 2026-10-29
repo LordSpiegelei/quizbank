@@ -1,9 +1,25 @@
 {% extends "base.html" %}
-{% from "_macros.html" import confirm_form %}
+{% from "_macros.html" import attempt_result, confirm_form, icon, page_head %}
 {% block content %}
-<h1>{{ t("courses.title") }}</h1>
+{{ page_head(t("courses.title")) }}
 
-<form method="get" action="{{ path('course_list') }}" role="search">
+{% if recent %}
+<h2>{{ t("courses.recent") }}</h2>
+<ul class="recent">
+  {% for exam, attempt in recent %}
+  <li>
+    <a href="{{ path('exam_detail', exam_id=exam.id) }}">
+      <span class="course">{{ exam.course.label }}</span>
+      <span class="title">{{ exam.title }}</span>
+      <span class="result">{{ attempt_result(attempt) }} · {{ attempt.finished_at | dt }}</span>
+    </a>
+  </li>
+  {% endfor %}
+</ul>
+{% endif %}
+
+<h2>{{ t("courses.all") }}</h2>
+<form method="get" action="{{ path('course_list') }}" role="search" class="list-tools">
   <input type="search" name="q" value="{{ q }}" placeholder="{{ t('courses.search') }}"
          aria-label="{{ t('courses.search') }}">
   <select name="sort" aria-label="{{ t('courses.sort') }}" onchange="this.form.submit()">
@@ -14,7 +30,7 @@
 
 {% if courses %}
 <div class="overflow-auto">
-<table class="striped">
+<table>
   <thead>
     <tr>
       <th>{{ t("course.name") }}</th>
@@ -25,32 +41,33 @@
   <tbody>
     {% for row in courses %}
     <tr>
-      <td><a href="{{ path('course_detail', course_id=row.course.id) }}">{{ row.course.label }}</a></td>
+      <td><a class="row-title" href="{{ path('course_detail', course_id=row.course.id) }}">{{ row.course.label }}</a></td>
       <td class="num">{{ row.exam_count }}</td>
-      <td>{{ row.last_practiced | dt if row.last_practiced else t("courses.never") }}</td>
+      <td class="muted">{{ row.last_practiced | dt if row.last_practiced else t("courses.never") }}</td>
     </tr>
     {% endfor %}
   </tbody>
 </table>
 </div>
 {% elif q %}
-<p>{{ t("courses.no_match", q=q) }}</p>
+<p class="muted">{{ t("courses.no_match", q=q) }}</p>
 {% else %}
-<p>{{ t("courses.empty") }}</p>
+<p class="muted">{{ t("courses.empty") }}</p>
 {% endif %}
 
-<section>
-  <h2>{{ t("courses.new") }}</h2>
-  <form method="post" action="{{ path('create_course') }}">
-    <fieldset role="group">
-      <input name="name" value="{{ new_name or '' }}" required aria-label="{{ t('course.name') }}"
-             placeholder="{{ t('course.name') }}">
-      <button type="submit">{{ t("courses.create") }}</button>
-    </fieldset>
-  </form>
-</section>
+<form method="post" action="{{ path('create_course') }}" class="settings">
+  <label>{{ t("courses.new") }}
+    <span role="group">
+      <input name="name" value="{{ new_name or '' }}" required placeholder="{{ t('course.name') }}">
+      <button type="submit">{{ icon("plus") }}{{ t("courses.create") }}</button>
+    </span>
+  </label>
+</form>
+
 {% if courses %}
-<hr>
-{{ confirm_form(path('reset_all_learning'), t("learning.reset_all"), t("learning.reset_all_confirm"), "secondary outline") }}
+<section class="danger-zone">
+  <h2>{{ t("manage.title") }}</h2>
+  {{ confirm_form(path('reset_all_learning'), t("learning.reset_all"), t("learning.reset_all_confirm"), "btn-quiet") }}
+</section>
 {% endif %}
 {% endblock %}

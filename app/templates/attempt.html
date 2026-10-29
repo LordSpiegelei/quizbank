@@ -81,7 +81,7 @@
   </article>
 
   <div class="quiz-nav">
-    <button class="secondary" @click="go(pos - 1)" :disabled="pos === 0">{{ t("quiz.prev") }}</button>
+    <button class="btn-quiet" @click="go(pos - 1)" :disabled="pos === 0">{{ t("quiz.prev") }}</button>
     <small class="save-status" x-text="status" aria-live="polite"></small>
     <button x-show="!canAdvance" @click="primary()">{{ t("quiz.check") }}</button>
     <button x-show="canAdvance && !isLast" @click="primary()">{{ t("quiz.next") }}</button>
@@ -94,7 +94,7 @@
     <summary>{{ t("quiz.overview") }}</summary>
     <div class="question-grid">
       <template x-for="(q, i) in questions" :key="q.id">
-        <button class="outline" :class="{ answered: isAnswered(q), current: i === pos, [q.solution?.status]: !!q.solution }"
+        <button :class="{ answered: isAnswered(q), current: i === pos, [q.solution?.status]: !!q.solution }"
                 @click="go(i)" x-text="i + 1"></button>
       </template>
     </div>
