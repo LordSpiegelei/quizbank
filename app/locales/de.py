@@ -84,6 +84,13 @@ TEXTS: dict[str, str] = {
     "pool.streak": "Richtig in Folge",
     "pool.remove": "Entfernen",
     "pool.disabled": "(deaktiviert)",
+    # Statistics
+    "stats.title": "Statistik",
+    "stats.hint": "Alle abgeschlossenen Versuche. Teilweise richtig zählt als falsch, offene Fragen zählen erst nach der Selbstbewertung.",
+    "stats.topics": "Trefferquote pro Thema",
+    "stats.counts": "{topic}: {correct} von {answered} richtig",
+    "stats.history": "Ergebnisse im Verlauf",
+    "stats.point": "{date} · {mode} · {percent} %",
     # History
     "history.title": "Verlauf",
     "history.empty": "Noch keine abgeschlossenen Versuche.",

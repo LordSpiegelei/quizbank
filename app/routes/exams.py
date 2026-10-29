@@ -12,9 +12,10 @@ from app.db import SessionDep, get_or_404
 from app.exporter import export_exam
 from app.importer import ImportResult, comes_back_on_restart, import_exam
 from app.models import Exam
-from app.queries import finished_attempts
+from app.queries import finished_attempts, topic_counts
 from app.schemas import ExamFile, ExamFileError, parse_exam
 from app.scoring import POOL_EXIT_STREAK
+from app.stats import history_chart, topic_stats
 from app.templating import redirect, render
 
 router = APIRouter()
@@ -33,6 +34,7 @@ def exam_page(
 ) -> HTMLResponse:
     """The exam page with its start dialog; also rendered when starting an attempt fails."""
     questions = exam.questions
+    history = finished_attempts(session, exam.id)
     return render(
         request,
         "exam.html",
@@ -49,7 +51,9 @@ def exam_page(
         pool_exit_streak=POOL_EXIT_STREAK,
         open_attempt=open_attempt(session, exam.id),
         delete_confirm=_delete_confirm(request, exam),
-        history=finished_attempts(session, exam.id),
+        history=history,
+        topic_stats=topic_stats(topic_counts(session, exam.id)),
+        chart=history_chart(history),
         **extra,
     )
 

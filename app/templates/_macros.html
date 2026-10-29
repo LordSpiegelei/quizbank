@@ -51,3 +51,45 @@
     {% endfor %}
   </span>
 {%- endmacro %}
+
+
+{# Hit rate per topic as thin horizontal bars; the numbers stay readable as text. #}
+{% macro topic_bars(stats) -%}
+  <table class="topic-stats">
+    <tbody>
+      {% for s in stats %}
+      {% set label = t("stats.counts", topic=s.topic, correct=s.correct, answered=s.answered) %}
+      <tr>
+        <th scope="row">{{ s.topic }}</th>
+        <td class="bar-cell">
+          <div class="bar" role="img" aria-label="{{ label }}" title="{{ label }}">
+            <span style="width: {{ '%.1f' % s.percent }}%"></span>
+          </div>
+        </td>
+        <td class="num">{{ s.percent | round | int }} %<br><small>{{ s.correct }}/{{ s.answered }}</small></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{%- endmacro %}
+
+{# Score percentages over time; each point links to its review and has a tooltip. #}
+{% macro line_chart(chart, label) -%}
+  <svg class="line-chart" viewBox="0 0 {{ chart.width }} {{ chart.view_height }}" role="img" aria-label="{{ label }}">
+    {% for tick, y in chart.ticks %}
+    <line class="grid-line" x1="{{ chart.points[0].x }}" x2="{{ chart.points[-1].x }}" y1="{{ y }}" y2="{{ y }}"></line>
+    <text class="axis-label" x="{{ chart.points[0].x }}" y="{{ y - 3 }}">{{ tick }} %</text>
+    {% endfor %}
+    <polyline class="series" points="{{ chart.polyline }}"></polyline>
+    {% for p in chart.points %}
+    <a href="{{ path('attempt_review', attempt_id=p.attempt.id) }}">
+      <circle class="hit" cx="{{ p.x }}" cy="{{ p.y }}" r="12">
+        <title>{{ t("stats.point", date=p.attempt.finished_at | dt, mode=t("mode." ~ p.attempt.mode), percent=p.attempt.percent | round | int) }}</title>
+      </circle>
+      <circle class="dot" cx="{{ p.x }}" cy="{{ p.y }}" r="4"></circle>
+    </a>
+    {% endfor %}
+    <text class="axis-label" x="{{ chart.points[0].x }}" y="{{ chart.view_height - 4 }}">{{ chart.points[0].attempt.finished_at | dt }}</text>
+    <text class="axis-label end" x="{{ chart.points[-1].x }}" y="{{ chart.view_height - 4 }}">{{ chart.points[-1].attempt.finished_at | dt }}</text>
+  </svg>
+{%- endmacro %}

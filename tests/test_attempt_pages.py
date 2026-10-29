@@ -271,3 +271,21 @@ def test_resets(client) -> None:
 
     response = client.post("/learning/reset", follow_redirects=False)
     assert response.headers["location"] == "/"
+
+
+def test_exam_page_statistics(client) -> None:
+    exam_id = _setup(client, single(topic="Algebra"), single(id="q2", topic="Geometrie"))
+    assert "Statistik" not in client.get(f"/exams/{exam_id}").text
+
+    for selected in ([1], [0]):
+        attempt_id = _start(client, exam_id)
+        url = _quiz_data(client.get(f"/attempts/{attempt_id}").text)["questions"][0]["url"]
+        client.put(url, json={"selected": selected})
+        client.post(f"/attempts/{attempt_id}/finish")
+
+    page = client.get(f"/exams/{exam_id}").text
+    assert "Trefferquote pro Thema" in page
+    assert "Algebra: 1 von 2 richtig" in page
+    assert "Geometrie: 0 von 2 richtig" in page
+    assert page.index("Geometrie: 0") < page.index("Algebra: 1")  # weakest first
+    assert 'class="line-chart"' in page

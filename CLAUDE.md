@@ -184,8 +184,8 @@ Eine Datei = eine Probeklausur. Schema wird als Pydantic-Modell implementiert un
 - [x] Hell/Dunkel-Modus (Umschalter in der Navigation: automatisch → hell → dunkel, im Browser gespeichert)
 
 ### Phase 2b – Klausursimulation & Statistik (eigene Ergänzung)
-- [ ] Klausurmodus: Countdown mit Auto-Abgabe, keine Lösungen bis zur Abgabe, „bestanden/nicht bestanden“ anhand `pass_mark`
-- [ ] Statistik pro Thema (Trefferquote über alle Versuche), Verlauf als einfaches Diagramm
+- [x] Klausurmodus: Countdown mit Auto-Abgabe, keine Lösungen bis zur Abgabe, „bestanden/nicht bestanden“ anhand `pass_mark`
+- [x] Statistik pro Thema (Trefferquote über alle Versuche), Verlauf als einfaches Diagramm (Exam-Seite: CSS-Balken + SVG-Linie, ohne Chart.js)
 
 ### Phase 3 – Case Studies
 - [ ] Fragetyp `open`: Textfeld, nach Abgabe Musterlösung + Raster, Selbstbewertung pro Kriterium
