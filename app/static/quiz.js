@@ -22,6 +22,10 @@ document.addEventListener("alpine:init", () => {
         return this.questions[this.pos];
       },
 
+      get answeredCount() {
+        return this.questions.filter((q) => this.isAnswered(q)).length;
+      },
+
       get isLast() {
         return this.pos === this.questions.length - 1;
       },
@@ -95,6 +99,15 @@ document.addEventListener("alpine:init", () => {
         event.preventDefault();
       },
 
+      // A UI text with {placeholders} filled in.
+      fmt(key, vars = {}) {
+        return this.texts[key].replace(/\{(\w+)\}/g, (_, name) => vars[name]);
+      },
+
+      get answeredLabel() {
+        return this.fmt("quiz.answered_of", { n: this.answeredCount, total: this.questions.length });
+      },
+
       letter(i) {
         return LETTERS[i];
       },
@@ -106,11 +119,7 @@ document.addEventListener("alpine:init", () => {
       // The shortcut hint, fitted to the current question's options.
       get keyHint() {
         const n = this.current.type === "open" ? 0 : this.current.options.length;
-        const pick = n
-          ? this.texts["quiz.keys_options"]
-              .replace("{n}", Math.min(n, 9))
-              .replace("{letter}", this.letter(n - 1))
-          : "";
+        const pick = n ? this.fmt("quiz.keys_options", { n: Math.min(n, 9), letter: this.letter(n - 1) }) : "";
         return [pick, this.texts["quiz.keys"]].filter(Boolean).join(" · ");
       },
 
@@ -125,11 +134,11 @@ document.addEventListener("alpine:init", () => {
         window.scrollTo({ top: 0 });
       },
 
+      // State classes of option i: chosen, and after checking correct / wrong (a wrong pick).
       optionClass(i) {
-        const s = this.current.solution;
-        if (!s) return {};
-        const correct = s.correct.includes(i);
-        return { correct, wrong: !correct && this.current.selected.includes(i) };
+        const chosen = this.current.selected.includes(i);
+        const correct = this.current.solution?.correct.includes(i) ?? false;
+        return { chosen, correct, wrong: !!this.current.solution && chosen && !correct };
       },
 
       toggle(i) {
@@ -213,9 +222,9 @@ document.addEventListener("alpine:init", () => {
       },
 
       submit() {
-        const open = this.questions.filter((q) => !this.isAnswered(q)).length;
+        const open = this.questions.length - this.answeredCount;
         const message = open
-          ? this.texts["quiz.finish_confirm_unanswered"].replace("{n}", open)
+          ? this.fmt("quiz.finish_confirm_unanswered", { n: open })
           : this.texts["quiz.finish_confirm"];
         if (confirm(message)) this.finish();
       },

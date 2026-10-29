@@ -32,7 +32,6 @@ router = APIRouter()
 
 # Texts the Alpine runner needs; everything else is rendered server-side.
 QUIZ_TEXT_KEYS = (
-    *(f"flag.{flag}.{action}" for flag in FLAGS for action in ("set", "unset")),
     "quiz.saving",
     "quiz.saved",
     "quiz.save_failed",
@@ -41,6 +40,7 @@ QUIZ_TEXT_KEYS = (
     "quiz.reveal_failed",
     "quiz.keys",
     "quiz.keys_options",
+    "quiz.answered_of",
 )
 
 

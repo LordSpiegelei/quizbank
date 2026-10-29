@@ -1,104 +1,138 @@
 {% extends "base.html" %}
+{% from "_macros.html" import icon %}
 {% block title %}{{ attempt.exam.title }} – {{ super() }}{% endblock %}
 {% block head %}
 <script defer src="{{ url_for('static', path='quiz.js') }}"></script>
 <script defer src="{{ url_for('static', path='vendor/alpine.min.js') }}"></script>
 {% endblock %}
-{% block content %}
+
+{# Focus mode: no sidebar, just the question and the answer sheet. #}
+{% block shell %}
 <script type="application/json" id="quiz-data">{{ quiz | tojson }}</script>
-<noscript><p class="notice error">{{ t("quiz.no_js") }}</p></noscript>
-<form id="finish-form" method="post" action="{{ path('finish_attempt', attempt_id=attempt.id) }}"></form>
+<form id="finish-form" method="post" hidden action="{{ path('finish_attempt', attempt_id=attempt.id) }}"></form>
 
-<div x-data="quiz" x-cloak>
-  <div class="quiz-bar">
-    <strong>{{ attempt.exam.title }} <small>({{ t("mode." ~ attempt.mode) }})</small></strong>
-    <span>{{ t("quiz.question") }} <span x-text="pos + 1"></span> {{ t("quiz.of") }} <span x-text="questions.length"></span></span>
-    <span class="timer" :class="{ low: remaining !== null && remaining < 300 }">
-      <span x-text="remaining !== null ? '{{ t('quiz.time_left') }}' : '{{ t('quiz.elapsed') }}'"></span>
-      <strong x-text="clock"></strong>
-    </span>
-  </div>
-
-  <article>
-    <header>
-      <small><span x-text="current.topic"></span> · <span x-text="current.points"></span> {{ t("quiz.points") }}</small>
-      <span class="flags" x-show="current.flags">
-        <template x-for="(on, flag) in current.flags || {}" :key="flag">
-          <button type="button" class="flag" :class="{ on }" :aria-pressed="on ? 'true' : 'false'"
-                  @click="setFlag(current, flag, !on)" x-text="texts[`flag.${flag}.${on ? 'unset' : 'set'}`]"></button>
-        </template>
-      </span>
-    </header>
-    <div class="scenario" x-show="current.scenario" x-html="current.scenario"></div>
-    <div x-html="current.question"></div>
-
-    <template x-if="current.type !== 'open'">
-      <fieldset :disabled="!!current.solution">
-        <p x-show="current.type === 'multiple'"><small>{{ t("quiz.multiple_hint") }}</small></p>
-        <template x-for="(option, i) in current.options" :key="current.id + '-' + i">
-          <div>
-            <label class="option" :class="optionClass(i)">
-              <input :type="current.type === 'single' ? 'radio' : 'checkbox'" :name="'q' + current.id"
-                     :checked="current.selected.includes(i)" @change="toggle(i)">
-              <span class="letter" x-text="letter(i)"></span>
-              <span x-html="option"></span>
-            </label>
-            <div class="option-explanation" x-show="current.solution?.option_explanations[i]"
-                 x-html="current.solution?.option_explanations[i]"></div>
-          </div>
-        </template>
-      </fieldset>
-    </template>
-
-    <template x-if="current.type === 'open'">
-      <textarea rows="10" placeholder="{{ t('quiz.text_placeholder') }}" :readonly="!!current.solution"
-                x-model="current.text_answer" @input="queueText(current)" @blur="saveText(current)"></textarea>
-    </template>
-
-    <template x-if="current.solution">
-      <footer class="feedback">
-        <p>
-          <mark class="status" :class="current.solution.status" x-text="current.solution.status_label"></mark>
-          <span x-text="current.solution.score"></span> / <span x-text="current.points"></span> {{ t("quiz.points") }}
-        </p>
-        <template x-if="current.solution.model_answer">
-          <div><h4>{{ t("review.model_answer") }}</h4><div x-html="current.solution.model_answer"></div></div>
-        </template>
-        <template x-if="current.solution.rubric.length">
-          <div>
-            <h4>{{ t("review.rubric") }}</h4>
-            <ul><template x-for="row in current.solution.rubric">
-              <li><span x-text="row.criterion"></span> (<span x-text="row.points"></span> {{ t("quiz.points") }})</li>
-            </template></ul>
-          </div>
-        </template>
-        <template x-if="current.solution.explanation">
-          <div><h4>{{ t("review.explanation") }}</h4><div x-html="current.solution.explanation"></div></div>
-        </template>
-        <small x-show="current.solution.source">{{ t("review.source") }}: <span x-text="current.solution.source"></span></small>
-      </footer>
-    </template>
-  </article>
-
-  <div class="quiz-nav">
-    <button class="btn-quiet" @click="go(pos - 1)" :disabled="pos === 0">{{ t("quiz.prev") }}</button>
-    <small class="save-status" x-text="status" aria-live="polite"></small>
-    <button x-show="!canAdvance" @click="primary()">{{ t("quiz.check") }}</button>
-    <button x-show="canAdvance && !isLast" @click="primary()">{{ t("quiz.next") }}</button>
-    <button x-show="canAdvance && isLast" @click="primary()">{{ t("quiz.finish") }}</button>
-  </div>
-
-  <p class="keys"><small x-text="keyHint"></small></p>
-
-  <details>
-    <summary>{{ t("quiz.overview") }}</summary>
-    <div class="question-grid">
-      <template x-for="(q, i) in questions" :key="q.id">
-        <button :class="{ answered: isAnswered(q), current: i === pos, [q.solution?.status]: !!q.solution }"
-                @click="go(i)" x-text="i + 1"></button>
-      </template>
+<div class="focus" x-data="quiz" x-cloak>
+  <header class="focus-bar">
+    <a class="btn-icon" href="{{ path('exam_detail', exam_id=attempt.exam_id) }}" title="{{ t('quiz.back') }}">
+      {{ icon("arrow-left") }}<span class="visually-hidden">{{ t("quiz.back") }}</span>
+    </a>
+    <div class="focus-title">
+      <strong>{{ attempt.exam.title }}</strong>
+      <span class="muted">{{ t("mode." ~ attempt.mode) }}</span>
     </div>
-    <button @click="submit()">{{ t("quiz.finish") }}</button>
-  </details>
+    <div class="timer" :class="{ low: remaining !== null && remaining < 300 }">
+      {{ icon("clock") }}
+      <span class="visually-hidden" x-text="remaining !== null ? '{{ t('quiz.time_left') }}' : '{{ t('quiz.elapsed') }}'"></span>
+      <strong x-text="clock"></strong>
+    </div>
+  </header>
+  <div class="progress" role="progressbar" aria-valuemin="0" :aria-valuemax="questions.length" :aria-valuenow="answeredCount"
+       aria-label="{{ t('quiz.answered') }}"><span :style="`width: ${100 * answeredCount / questions.length}%`"></span></div>
+
+  <div class="focus-body">
+    <main class="question-col">
+      <noscript><p class="notice error">{{ t("quiz.no_js") }}</p></noscript>
+      <div class="q-head">
+        <span class="q-pos">{{ t("quiz.question") }} <span x-text="pos + 1"></span> {{ t("quiz.of") }} <span x-text="questions.length"></span></span>
+        <span class="muted"><span x-text="current.topic"></span>, <span x-text="current.points"></span> {{ t("quiz.points") }}</span>
+        <span class="q-tools">
+          {# Same symbols and actions as question_state / question_menu, bound to the current question. #}
+          {% for flag in flags %}
+          <span class="state-{{ flag }}" x-show="current.flags?.{{ flag }}" title="{{ t('flag.' ~ flag ~ '.state') }}">
+            {{ icon(flag_icons[flag]) }}<span class="visually-hidden">{{ t("flag." ~ flag ~ ".state") }}</span>
+          </span>
+          {% endfor %}
+          <details class="menu" x-show="current.flags">
+            <summary class="btn-icon" title="{{ t('questions.menu') }}">{{ icon("ellipsis") }}<span class="visually-hidden">{{ t("questions.menu") }}</span></summary>
+            <div class="menu-list">
+              {% for flag in flags %}
+              <button type="button" @click="setFlag(current, '{{ flag }}', !current.flags.{{ flag }}); $el.closest('details').open = false">
+                {{ icon(flag_icons[flag]) }}<span x-text="current.flags?.{{ flag }} ? '{{ t('flag.' ~ flag ~ '.unset') }}' : '{{ t('flag.' ~ flag ~ '.set') }}'"></span>
+              </button>
+              {% endfor %}
+            </div>
+          </details>
+        </span>
+      </div>
+
+      <div class="scenario" x-show="current.scenario" x-html="current.scenario"></div>
+      <div class="question-text" x-html="current.question"></div>
+
+      <template x-if="current.type !== 'open'">
+        <fieldset class="choices" :disabled="!!current.solution">
+          <legend class="visually-hidden">{{ t("quiz.answers") }}</legend>
+          <p class="muted" x-show="current.type === 'multiple'"><small>{{ t("quiz.multiple_hint") }}</small></p>
+          <template x-for="(option, i) in current.options" :key="current.id + '-' + i">
+            <div>
+              <label class="option" :class="optionClass(i)">
+                <input :type="current.type === 'single' ? 'radio' : 'checkbox'" :name="'q' + current.id"
+                       :checked="current.selected.includes(i)" @change="toggle(i)">
+                <span class="mark" x-text="letter(i)"></span>
+                <span class="option-text" x-html="option"></span>
+                <span class="verdict right">{{ icon("check") }}</span>
+                <span class="verdict wrong">{{ icon("x") }}</span>
+              </label>
+              <div class="option-explanation" x-show="current.solution?.option_explanations[i]"
+                   x-html="current.solution?.option_explanations[i]"></div>
+            </div>
+          </template>
+        </fieldset>
+      </template>
+
+      <template x-if="current.type === 'open'">
+        <textarea rows="12" placeholder="{{ t('quiz.text_placeholder') }}" :readonly="!!current.solution"
+                  aria-label="{{ t('review.your_answer') }}"
+                  x-model="current.text_answer" @input="queueText(current)" @blur="saveText(current)"></textarea>
+      </template>
+
+      <template x-if="current.solution">
+        <section class="feedback">
+          <p class="feedback-head">
+            <mark class="status" :class="current.solution.status" x-text="current.solution.status_label"></mark>
+            <span><span x-text="current.solution.score"></span> / <span x-text="current.points"></span> {{ t("quiz.points") }}</span>
+          </p>
+          <template x-if="current.solution.model_answer">
+            <div><h4>{{ t("review.model_answer") }}</h4><div x-html="current.solution.model_answer"></div></div>
+          </template>
+          <template x-if="current.solution.rubric.length">
+            <div>
+              <h4>{{ t("review.rubric") }}</h4>
+              <ul><template x-for="row in current.solution.rubric">
+                <li><span x-text="row.criterion"></span> (<span x-text="row.points"></span> {{ t("quiz.points") }})</li>
+              </template></ul>
+            </div>
+          </template>
+          <template x-if="current.solution.explanation">
+            <div><h4>{{ t("review.explanation") }}</h4><div x-html="current.solution.explanation"></div></div>
+          </template>
+          <p class="muted" x-show="current.solution.source"><small>{{ t("review.source") }}: <span x-text="current.solution.source"></span></small></p>
+        </section>
+      </template>
+
+      <div class="quiz-nav">
+        <button class="btn-quiet" @click="go(pos - 1)" :disabled="pos === 0">{{ icon("arrow-left") }}{{ t("quiz.prev") }}</button>
+        <small class="save-status" x-text="status" aria-live="polite"></small>
+        <button x-show="!canAdvance" @click="primary()">{{ icon("check") }}{{ t("quiz.check") }}</button>
+        <button x-show="canAdvance && !isLast" @click="primary()">{{ t("quiz.next") }}{{ icon("arrow-right") }}</button>
+        <button x-show="canAdvance && isLast" @click="primary()">{{ t("quiz.finish") }}</button>
+      </div>
+    </main>
+
+    <aside class="sheet-col" aria-label="{{ t('quiz.sheet') }}">
+      <h2>{{ t("quiz.sheet") }}</h2>
+      <p class="muted"><small x-text="answeredLabel"></small></p>
+      <ol class="sheet">
+        <template x-for="(q, i) in questions" :key="q.id">
+          <li>
+            <button type="button" class="sheet-bubble" @click="go(i)" x-text="i + 1"
+                    :aria-current="i === pos ? 'step' : null"
+                    :class="{ answered: isAnswered(q), starred: q.flags?.starred, [q.solution?.status]: !!q.solution }"></button>
+          </li>
+        </template>
+      </ol>
+      <button type="button" class="btn-quiet sheet-submit" @click="submit()">{{ t("quiz.finish") }}</button>
+      <p class="keys"><small x-text="keyHint"></small></p>
+    </aside>
+  </div>
 </div>
 {% endblock %}
