@@ -71,6 +71,7 @@ def score_question(
 
 
 POOL_EXIT_STREAK = 2  # correct answers in a row that take a question out of the wrong pool
+POOL_OUT = (False, 0)  # (in_pool, streak) of a question that is not in the wrong pool
 
 
 def update_pool(in_pool: bool, streak: int, is_correct: bool) -> tuple[bool, int]:
@@ -79,7 +80,7 @@ def update_pool(in_pool: bool, streak: int, is_correct: bool) -> tuple[bool, int
     if not is_correct:
         return True, 0
     if not in_pool or streak + 1 >= POOL_EXIT_STREAK:
-        return False, 0
+        return POOL_OUT
     return True, streak + 1
 
 

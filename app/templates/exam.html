@@ -8,6 +8,20 @@
   </fieldset>
 {%- endmacro %}
 
+{% macro feedback_fields() -%}
+  <fieldset>
+    <legend>{{ t("start.feedback") }}</legend>
+    <label><input type="radio" name="feedback" value="instant" checked> {{ t("start.feedback.instant") }}</label>
+    <label><input type="radio" name="feedback" value="end"> {{ t("start.feedback.end") }}</label>
+  </fieldset>
+{%- endmacro %}
+
+{% macro count_field(total) -%}
+  <label>{{ t("start.count") }}
+    <input type="number" name="count" min="1" max="{{ total }}" placeholder="{{ t('start.count_all', n=total) }}">
+  </label>
+{%- endmacro %}
+
 {# Multi-select filter; nothing ticked means "all". #}
 {% macro choice_fields(name, label, values) -%}
   {% if values | length > 1 %}
@@ -61,24 +75,57 @@
       <header><strong>{{ t("mode.practice") }}</strong></header>
       <form method="post" action="{{ path('start_attempt_form', exam_id=exam.id) }}">
         <input type="hidden" name="mode" value="practice">
-        <fieldset>
-          <legend>{{ t("start.feedback") }}</legend>
-          <label><input type="radio" name="feedback" value="instant" checked> {{ t("start.feedback.instant") }}</label>
-          <label><input type="radio" name="feedback" value="end"> {{ t("start.feedback.end") }}</label>
-        </fieldset>
+        {{ feedback_fields() }}
         {{ choice_fields("topics", t("exam.topics"), topics) }}
         {{ choice_fields("tags", t("start.tags"), tags) }}
-        <label>{{ t("start.count") }}
-          <input type="number" name="count" min="1" max="{{ question_count }}"
-                 placeholder="{{ t('start.count_all', n=question_count) }}">
-        </label>
+        {{ count_field(question_count) }}
         {{ shuffle_fields() }}
         <button type="submit">{{ t("start.practice_submit") }}</button>
+      </form>
+    </article>
+    <article>
+      <header><strong>{{ t("mode.retry_wrong") }}</strong></header>
+      <p><small>{{ t("start.retry_hint", n=pool_retryable, streak=pool_exit_streak) }}</small></p>
+      <form method="post" action="{{ path('start_attempt_form', exam_id=exam.id) }}">
+        <input type="hidden" name="mode" value="retry_wrong">
+        <fieldset {{ "disabled" if not pool_retryable }}>
+          {{ feedback_fields() }}
+          {% if pool_retryable > 1 %}{{ count_field(pool_retryable) }}{% endif %}
+          {{ shuffle_fields() }}
+          <button type="submit">{{ t("start.retry_submit") }}</button>
+        </fieldset>
       </form>
     </article>
   </div>
   {% endif %}
 </section>
+
+{% if pool %}
+<details>
+  <summary>{{ t("pool.title", n=pool | length) }}</summary>
+  <div class="overflow-auto">
+  <table class="striped">
+    <thead>
+      <tr><th>{{ t("quiz.question") }}</th><th>{{ t("pool.topic") }}</th><th>{{ t("pool.streak") }}</th><th></th></tr>
+    </thead>
+    <tbody>
+      {% for q in pool %}
+      <tr>
+        <td>{{ q.question | md_inline }}{% if q.disabled %} <small>{{ t("pool.disabled") }}</small>{% endif %}</td>
+        <td>{{ q.topic }}</td>
+        <td class="num">{{ q.pool_streak }}/{{ pool_exit_streak }}</td>
+        <td>
+          <form method="post" action="{{ path('remove_from_pool_form', question_id=q.id) }}">
+            <button type="submit" class="secondary outline">{{ t("pool.remove") }}</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</details>
+{% endif %}
 
 <h2>{{ t("history.title") }}</h2>
 {% if history %}
