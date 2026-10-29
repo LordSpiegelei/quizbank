@@ -13,8 +13,8 @@ def _setup(client, *questions, **overrides) -> int:
         return session.exec(select(Exam)).one().id
 
 
-def _start(client, exam_id: int) -> int:
-    response = client.post(f"/exams/{exam_id}/attempts", follow_redirects=False)
+def _start(client, exam_id: int, **form) -> int:
+    response = client.post(f"/exams/{exam_id}/attempts", data=form, follow_redirects=False)
     assert response.status_code == 303
     return int(response.headers["location"].rsplit("/", 1)[1])
 
@@ -38,6 +38,8 @@ def test_runner_page_hides_solutions(client) -> None:
     assert set(question) == {
         "id",
         "url",
+        "revealUrl",
+        "solution",
         "type",
         "topic",
         "points",
@@ -47,6 +49,7 @@ def test_runner_page_hides_solutions(client) -> None:
         "selected",
         "text_answer",
     }
+    assert question["solution"] is None
     assert question["question"] == "<p><strong>Fett</strong>?</p>\n"
     assert 590 < quiz["remaining"] <= 600
 
@@ -110,3 +113,80 @@ def test_unfinished_review_redirects_to_runner(client) -> None:
     response = client.get(f"/attempts/{attempt_id}/review", follow_redirects=False)
     assert response.headers["location"] == f"/attempts/{attempt_id}"
     assert client.get("/attempts/999").status_code == 404
+
+
+def test_practice_with_instant_feedback(client) -> None:
+    exam_id = _setup(
+        client,
+        single(topic="Algebra", explanation="Weil B."),
+        single(id="q2", topic="Geometrie"),
+        time_limit_minutes=10,
+    )
+    attempt_id = _start(client, exam_id, mode="practice", feedback="instant", topics=["Algebra"])
+    page = client.get(f"/attempts/{attempt_id}").text
+    quiz = _quiz_data(page)
+    assert quiz["feedback"] == "instant"
+    assert quiz["remaining"] is None  # practice has no countdown
+    assert len(quiz["questions"]) == 1
+    question = quiz["questions"][0]
+    assert question["solution"] is None
+    assert "Weil B." not in page
+
+    client.put(question["url"], json={"selected": [1]})
+    solution = client.post(question["revealUrl"]).json()
+    assert solution["status"] == "correct"
+    assert solution["correct"] == [1]
+    assert "Weil B." in solution["explanation"]
+    assert client.put(question["url"], json={"selected": [0]}).status_code == 409
+
+    # Resuming shows the revealed solution again.
+    resumed = _quiz_data(client.get(f"/attempts/{attempt_id}").text)["questions"][0]
+    assert resumed["solution"]["status"] == "correct"
+
+
+def test_reveal_rejected_in_exam_mode(client) -> None:
+    attempt_id = _start(client, _setup(client))
+    question = _quiz_data(client.get(f"/attempts/{attempt_id}").text)["questions"][0]
+    assert client.post(question["revealUrl"]).status_code == 422
+
+
+def test_start_without_matching_questions(client) -> None:
+    exam_id = _setup(client, single(tags=["x"]))
+    response = client.post(f"/exams/{exam_id}/attempts", data={"mode": "practice", "tags": ["y"]})
+    assert response.status_code == 422
+    assert "Keine Frage passt" in response.text
+    with db(client) as session:
+        assert session.exec(select(Attempt)).all() == []
+
+
+def test_exam_page_offers_filters(client) -> None:
+    exam_id = _setup(
+        client, single(topic="A", tags=["t1"]), single(id="q2", topic="B", tags=["t2"])
+    )
+    page = client.get(f"/exams/{exam_id}").text
+    assert "Übung starten" in page
+    assert 'name="topics" value="A"' in page
+    assert 'name="tags" value="t2"' in page
+
+
+def test_start_form_fields(client) -> None:
+    exam_id = _setup(client, single(), single(id="q2", tags=["t"]), single(id="q3", tags=["t"]))
+    form = {"mode": "practice", "count": "", "tags": ["t", "x"], "shuffle_options": "true"}
+    attempt_id = _start(client, exam_id, **form)
+    with db(client) as session:
+        attempt = session.get(Attempt, attempt_id)
+        assert attempt.filter == {
+            "topics": [],
+            "tags": ["t", "x"],
+            "count": None,  # an empty field means all
+            "shuffle_questions": False,
+            "shuffle_options": True,
+        }
+        assert len(attempt.answers) == 2
+    client.post(f"/attempts/{attempt_id}/restart")
+
+    with db(client) as session:
+        session.delete(session.exec(select(Attempt)).one())
+        session.commit()
+    response = client.post(f"/exams/{exam_id}/attempts", data={"mode": "practice", "count": "0"})
+    assert response.status_code == 422

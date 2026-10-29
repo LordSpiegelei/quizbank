@@ -11,10 +11,11 @@
 
 <div x-data="quiz" x-cloak>
   <div class="quiz-bar">
-    <strong>{{ attempt.exam.title }}</strong>
+    <strong>{{ attempt.exam.title }} <small>({{ t("mode." ~ attempt.mode) }})</small></strong>
     <span>{{ t("quiz.question") }} <span x-text="index + 1"></span> {{ t("quiz.of") }} <span x-text="questions.length"></span></span>
-    <span class="timer" x-show="remaining !== null" :class="{ low: remaining < 300 }">
-      {{ t("quiz.time_left") }} <strong x-text="clock"></strong>
+    <span class="timer" :class="{ low: remaining !== null && remaining < 300 }">
+      <span x-text="remaining !== null ? '{{ t('quiz.time_left') }}' : '{{ t('quiz.elapsed') }}'"></span>
+      <strong x-text="clock"></strong>
     </span>
   </div>
 
@@ -26,37 +27,66 @@
     <div x-html="current.question"></div>
 
     <template x-if="current.type !== 'open'">
-      <fieldset>
+      <fieldset :disabled="!!current.solution">
         <p x-show="current.type === 'multiple'"><small>{{ t("quiz.multiple_hint") }}</small></p>
         <template x-for="(option, i) in current.options" :key="current.id + '-' + i">
-          <label class="option">
-            <input :type="current.type === 'single' ? 'radio' : 'checkbox'" :name="'q' + current.id"
-                   :checked="current.selected.includes(i)" @change="toggle(i)">
-            <span class="letter" x-text="letter(i)"></span>
-            <span x-html="option"></span>
-          </label>
+          <div>
+            <label class="option" :class="optionClass(i)">
+              <input :type="current.type === 'single' ? 'radio' : 'checkbox'" :name="'q' + current.id"
+                     :checked="current.selected.includes(i)" @change="toggle(i)">
+              <span class="letter" x-text="letter(i)"></span>
+              <span x-html="option"></span>
+            </label>
+            <div class="option-explanation" x-show="current.solution?.option_explanations[i]"
+                 x-html="current.solution?.option_explanations[i]"></div>
+          </div>
         </template>
       </fieldset>
     </template>
 
     <template x-if="current.type === 'open'">
-      <textarea rows="10" placeholder="{{ t('quiz.text_placeholder') }}"
+      <textarea rows="10" placeholder="{{ t('quiz.text_placeholder') }}" :readonly="!!current.solution"
                 x-model="current.text_answer" @input="queueText(current)" @blur="saveText(current)"></textarea>
+    </template>
+
+    <template x-if="current.solution">
+      <footer class="feedback">
+        <p>
+          <mark class="status" :class="current.solution.status" x-text="current.solution.status_label"></mark>
+          <span x-text="current.solution.score"></span> / <span x-text="current.points"></span> {{ t("quiz.points") }}
+        </p>
+        <template x-if="current.solution.model_answer">
+          <div><h4>{{ t("review.model_answer") }}</h4><div x-html="current.solution.model_answer"></div></div>
+        </template>
+        <template x-if="current.solution.rubric.length">
+          <div>
+            <h4>{{ t("review.rubric") }}</h4>
+            <ul><template x-for="row in current.solution.rubric">
+              <li><span x-text="row.criterion"></span> (<span x-text="row.points"></span> {{ t("quiz.points") }})</li>
+            </template></ul>
+          </div>
+        </template>
+        <template x-if="current.solution.explanation">
+          <div><h4>{{ t("review.explanation") }}</h4><div x-html="current.solution.explanation"></div></div>
+        </template>
+        <small x-show="current.solution.source">{{ t("review.source") }}: <span x-text="current.solution.source"></span></small>
+      </footer>
     </template>
   </article>
 
   <div class="quiz-nav">
     <button class="secondary" @click="go(index - 1)" :disabled="index === 0">{{ t("quiz.prev") }}</button>
     <small class="save-status" x-text="status" aria-live="polite"></small>
-    <button x-show="index < questions.length - 1" @click="go(index + 1)">{{ t("quiz.next") }}</button>
-    <button x-show="index === questions.length - 1" @click="submit()">{{ t("quiz.finish") }}</button>
+    <button x-show="!canAdvance" @click="check(current)">{{ t("quiz.check") }}</button>
+    <button x-show="canAdvance && !isLast" @click="go(index + 1)">{{ t("quiz.next") }}</button>
+    <button x-show="canAdvance && isLast" @click="submit()">{{ t("quiz.finish") }}</button>
   </div>
 
   <details>
     <summary>{{ t("quiz.overview") }}</summary>
     <div class="question-grid">
       <template x-for="(q, i) in questions" :key="q.id">
-        <button class="outline" :class="{ answered: isAnswered(q), current: i === index }"
+        <button class="outline" :class="{ answered: isAnswered(q), current: i === index, [q.solution?.status]: !!q.solution }"
                 @click="go(i)" x-text="i + 1"></button>
       </template>
     </div>

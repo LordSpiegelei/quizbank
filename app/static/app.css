@@ -44,9 +44,16 @@ label.option input { flex: none; margin: 0; }
 mark.status.correct { background: var(--pico-ins-color); color: #fff; }
 mark.status.wrong, mark.status.unanswered { background: var(--pico-del-color); color: #fff; }
 .review-options li { padding: 0.25rem 0.5rem; border-radius: var(--pico-border-radius); margin-bottom: 0.25rem; }
-.review-options li.correct { border-left: 4px solid var(--pico-ins-color); }
-.review-options li.wrong { border-left: 4px solid var(--pico-del-color); }
+.review-options li.correct, .review-options li.wrong { border-left: 4px solid; }
 .review-options .tag { margin-left: 0.5rem; color: var(--pico-muted-color); }
 .option-explanation { color: var(--pico-muted-color); font-size: 0.9em; }
 .option-explanation p { margin-bottom: 0.25rem; }
 .text-answer { white-space: pre-wrap; }
+
+/* Instant feedback; one colour per status, shared with the review page */
+.review-options li.correct, label.option.correct, .question-grid button.correct { border-color: var(--pico-ins-color); }
+.review-options li.wrong, label.option.wrong,
+.question-grid button.wrong, .question-grid button.unanswered { border-color: var(--pico-del-color); }
+.question-grid button.partial { border-color: var(--pico-mark-background-color); }
+fieldset:disabled label.option { cursor: default; opacity: 1; }
+.feedback mark.status { margin-right: 0.5rem; }

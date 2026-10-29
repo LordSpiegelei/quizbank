@@ -1,6 +1,25 @@
 {% extends "base.html" %}
 {% from "_macros.html" import attempt_result, confirm_form, pass_mark, time_limit %}
 {% block title %}{{ exam.title }} – {{ super() }}{% endblock %}
+{% macro shuffle_fields() -%}
+  <fieldset>
+    <label><input type="checkbox" name="shuffle_questions" value="true"> {{ t("start.shuffle_questions") }}</label>
+    <label><input type="checkbox" name="shuffle_options" value="true"> {{ t("start.shuffle_options") }}</label>
+  </fieldset>
+{%- endmacro %}
+
+{# Multi-select filter; nothing ticked means "all". #}
+{% macro choice_fields(name, label, values) -%}
+  {% if values | length > 1 %}
+  <details>
+    <summary>{{ label }} <small>({{ t("start.all_if_none") }})</small></summary>
+    {% for value in values %}
+    <label><input type="checkbox" name="{{ name }}" value="{{ value }}"> {{ value }}</label>
+    {% endfor %}
+  </details>
+  {% endif %}
+{%- endmacro %}
+
 {% block content %}
 <nav aria-label="breadcrumb">
   <ul>
@@ -29,9 +48,35 @@
       {{ confirm_form(path('restart_attempt', attempt_id=open_attempt.id), t("exam.restart"), t("exam.restart_confirm"), "secondary outline") }}
     </div>
   {% else %}
-    <form method="post" action="{{ path('start_attempt', exam_id=exam.id) }}">
-      <button type="submit">{{ t("exam.start") }}</button>
-    </form>
+  <div class="grid">
+    <article>
+      <header><strong>{{ t("mode.exam") }}</strong></header>
+      <p><small>{{ t("start.exam_hint") }}</small></p>
+      <form method="post" action="{{ path('start_attempt_form', exam_id=exam.id) }}">
+        {{ shuffle_fields() }}
+        <button type="submit">{{ t("exam.start") }}</button>
+      </form>
+    </article>
+    <article>
+      <header><strong>{{ t("mode.practice") }}</strong></header>
+      <form method="post" action="{{ path('start_attempt_form', exam_id=exam.id) }}">
+        <input type="hidden" name="mode" value="practice">
+        <fieldset>
+          <legend>{{ t("start.feedback") }}</legend>
+          <label><input type="radio" name="feedback" value="instant" checked> {{ t("start.feedback.instant") }}</label>
+          <label><input type="radio" name="feedback" value="end"> {{ t("start.feedback.end") }}</label>
+        </fieldset>
+        {{ choice_fields("topics", t("exam.topics"), topics) }}
+        {{ choice_fields("tags", t("start.tags"), tags) }}
+        <label>{{ t("start.count") }}
+          <input type="number" name="count" min="1" max="{{ question_count }}"
+                 placeholder="{{ t('start.count_all', n=question_count) }}">
+        </label>
+        {{ shuffle_fields() }}
+        <button type="submit">{{ t("start.practice_submit") }}</button>
+      </form>
+    </article>
+  </div>
   {% endif %}
 </section>
 
