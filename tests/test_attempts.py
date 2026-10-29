@@ -12,6 +12,7 @@ from app.attempts import (
     finalize_expired,
     finish,
     open_attempt,
+    remove_from_pool,
     restart,
     reveal,
     save_answer,
@@ -309,3 +310,26 @@ def test_restart_keeps_options(session) -> None:
     fresh = restart(session, attempt)
     assert StartOptions.of(fresh) == options
     assert _ids(fresh) == ["a", "b"]
+
+
+def test_retry_wrong_asks_the_pool(session) -> None:
+    exam_row = _filter_exam(session)
+    a, b, c, _ = exam_row.questions
+    a.in_wrong_pool = b.in_wrong_pool = c.in_wrong_pool = True
+    b.disabled = True
+    assert StartOptions(mode="retry_wrong", topics=["Geometrie"]).topics == []  # pool decides
+    attempt = start_attempt(session, exam_row, StartOptions(mode="retry_wrong"), now=T0)
+    assert _ids(attempt) == ["a", "c"]
+    assert attempt.pass_mark is None
+
+
+def test_retry_wrong_with_empty_pool(session) -> None:
+    with pytest.raises(NoQuestions):
+        start_attempt(session, _filter_exam(session), StartOptions(mode="retry_wrong"))
+
+
+def test_remove_from_pool(session) -> None:
+    question = _filter_exam(session).questions[0]
+    question.in_wrong_pool, question.pool_streak = True, 1
+    remove_from_pool(session, question)
+    assert (question.in_wrong_pool, question.pool_streak) == (False, 0)

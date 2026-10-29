@@ -13,12 +13,12 @@ from sqlmodel import Session, col, select
 
 from app.models import Answer, Attempt, Exam, Question, utcnow
 from app.schemas import QUESTION_MODELS, MultipleScoring
-from app.scoring import AnswerScore, score_question, summarize, update_pool
+from app.scoring import POOL_OUT, AnswerScore, score_question, summarize, update_pool
 
 # Every content field of the import format (CLAUDE.md §6), so new fields are frozen too.
 SNAPSHOT_FIELDS = set().union(*(model.model_fields for model in QUESTION_MODELS)) - {"id"}
 
-Mode = Literal["exam", "practice"]
+Mode = Literal["exam", "practice", "retry_wrong"]
 Feedback = Literal["instant", "end"]
 LockReason = Literal["finished", "expired", "revealed"]
 AnswerStatus = Literal["correct", "partial", "wrong", "unanswered", "pending"]
@@ -40,6 +40,13 @@ def _blank_to_none(value: Any) -> Any:
     return None if value == "" else value  # an empty form field means "no limit"
 
 
+# Settings a mode overrides because they don't apply to it.
+_MODE_OVERRIDES: dict[str, dict[str, Any]] = {
+    "exam": {"feedback": "end", "topics": [], "tags": [], "count": None},  # asks everything
+    "retry_wrong": {"topics": [], "tags": []},  # the pool decides which questions come up
+}
+
+
 class StartOptions(BaseModel):
     """What the start dialog chose (it is the form model too); kept in Attempt.filter so a
     restart can repeat it."""
@@ -54,11 +61,10 @@ class StartOptions(BaseModel):
 
     @model_validator(mode="before")
     @classmethod
-    def _exam_asks_everything(cls, data: Any) -> Any:
-        """Exam mode: all questions, feedback at the end; practice settings don't apply."""
-        if isinstance(data, dict) and data.get("mode", "exam") == "exam":
-            return {**data, "feedback": "end", "topics": [], "tags": [], "count": None}
-        return data
+    def _apply_mode_overrides(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+        return data | _MODE_OVERRIDES.get(data.get("mode", "exam"), {})
 
     @classmethod
     def of(cls, attempt: Attempt) -> "StartOptions":
@@ -76,16 +82,23 @@ def snapshot(question: Question) -> dict[str, Any]:
     return {name: deepcopy(getattr(question, name)) for name in SNAPSHOT_FIELDS}
 
 
+def askable(question: Question, mode: Mode) -> bool:
+    """Exam mode asks everything; practice skips disabled questions; retry_wrong also needs
+    the question to be in the wrong pool."""
+    if mode == "exam":
+        return True
+    return not question.disabled and (mode != "retry_wrong" or question.in_wrong_pool)
+
+
 def pick_questions(
     questions: Sequence[Question], options: StartOptions, rng: random.Random
 ) -> list[Question]:
-    """Practice skips disabled questions (exam mode asks everything). Topics and tags each
-    match any of the chosen values; `count` draws a random sample."""
+    """Topics and tags each match any of the chosen values; `count` draws a random sample."""
     topics, tags = set(options.topics), set(options.tags)
     picked = [
         q
         for q in questions
-        if (options.mode == "exam" or not q.disabled)
+        if askable(q, options.mode)
         and (not topics or q.topic in topics)
         and (not tags or tags.intersection(q.tags))
     ]
@@ -313,3 +326,9 @@ def reveal(session: Session, attempt: Attempt, answer: Answer, now: datetime | N
     if not answer.revealed:
         answer.revealed = True
         session.commit()
+
+
+def remove_from_pool(session: Session, question: Question) -> None:
+    """Manual "aus Pool entfernen": counts as learned, the streak starts over."""
+    question.in_wrong_pool, question.pool_streak = POOL_OUT
+    session.commit()

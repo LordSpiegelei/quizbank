@@ -63,6 +63,14 @@ TEXTS: dict[str, str] = {
     "start.shuffle_questions": "Fragen mischen",
     "start.shuffle_options": "Antwortoptionen mischen",
     "start.no_questions": "Keine Frage passt zu dieser Auswahl.",
+    "start.retry_hint": "Fragen im Falsch-Pool: {n}. Eine Frage verlässt den Pool nach {streak} richtigen Antworten in Folge.",
+    "start.retry_submit": "Wiederholung starten",
+    # Wrong pool
+    "pool.title": "Falsch-Pool ({n})",
+    "pool.topic": "Thema",
+    "pool.streak": "Richtig in Folge",
+    "pool.remove": "Entfernen",
+    "pool.disabled": "(deaktiviert)",
     # History
     "history.title": "Verlauf",
     "history.empty": "Noch keine abgeschlossenen Versuche.",

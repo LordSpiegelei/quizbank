@@ -176,7 +176,7 @@ Eine Datei = eine Probeklausur. Schema wird als Pydantic-Modell implementiert un
 ### Phase 2 – Lernfunktionen (Funktionsumfang wie quiz-prep)
 - [x] Start-Dialog auf der Exam-Seite: Klausur oder Übung, **Filter nach Thema/Tags**, Fragenanzahl (Übung ohne Countdown, siehe §6)
 - [x] Zwei Feedback-Modi: **Sofort-Feedback** nach jeder Frage („Prüfen"-Button) oder **Auswertung erst am Ende**
-- [ ] **Falsch-Pool pro Quiz** wiederholen (siehe §6), Pool-Liste auf der Exam-Seite
+- [x] **Falsch-Pool pro Quiz** wiederholen (siehe §6), Pool-Liste auf der Exam-Seite (Wiederholen bietet Feedback-Modus, Anzahl und Mischen, keine Themenfilter)
 - [ ] Fragen **markieren** (Stern) und **deaktivieren**; beim Start filtern: alle / nur markierte / ohne deaktivierte; „Lernstand zurücksetzen" in den Einstellungen
 - [x] Fragen und Antwortoptionen zufällig mischen
 - [ ] **Export** eines Quiz zurück nach JSON

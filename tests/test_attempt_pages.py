@@ -190,3 +190,27 @@ def test_start_form_fields(client) -> None:
         session.commit()
     response = client.post(f"/exams/{exam_id}/attempts", data={"mode": "practice", "count": "0"})
     assert response.status_code == 422
+
+
+def test_wrong_pool_retry_and_removal(client) -> None:
+    exam_id = _setup(client, single(question="Erste?"), single(id="q2", question="Zweite?"))
+    page = client.get(f"/exams/{exam_id}").text
+    assert "Falsch-Pool (" not in page  # no pool list yet
+    assert "<fieldset disabled>" in page  # nothing to retry yet
+
+    # An exam attempt with both questions unanswered fills the pool.
+    attempt_id = _start(client, exam_id)
+    client.post(f"/attempts/{attempt_id}/finish")
+    page = client.get(f"/exams/{exam_id}").text
+    assert "Falsch-Pool (2)" in page
+    assert "0/2" in page
+
+    retry_id = _start(client, exam_id, mode="retry_wrong", feedback="end", count="1")
+    with db(client) as session:
+        retry = session.get(Attempt, retry_id)
+        assert (retry.mode, len(retry.answers)) == ("retry_wrong", 1)
+        question_id = retry.answers[0].question_id
+
+    response = client.post(f"/questions/{question_id}/pool/remove", follow_redirects=False)
+    assert response.headers["location"] == f"/exams/{exam_id}"
+    assert "Falsch-Pool (1)" in client.get(f"/exams/{exam_id}").text

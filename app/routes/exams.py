@@ -6,12 +6,13 @@ from sqlmodel import Session
 from starlette.concurrency import run_in_threadpool
 from starlette.datastructures import UploadFile
 
-from app.attempts import open_attempt
+from app.attempts import askable, open_attempt, remove_from_pool
 from app.db import SessionDep, get_or_404
 from app.importer import ImportResult, comes_back_on_restart, import_exam
-from app.models import Exam
+from app.models import Exam, Question
 from app.queries import finished_attempts
 from app.schemas import ExamFile, ExamFileError, parse_exam
+from app.scoring import POOL_EXIT_STREAK
 from app.templating import redirect, render
 
 router = APIRouter()
@@ -39,6 +40,9 @@ def exam_page(
         max_score=sum(q.points for q in questions),
         topics=sorted({q.topic for q in questions}, key=str.casefold),
         tags=sorted({tag for q in questions for tag in q.tags}, key=str.casefold),
+        pool=[q for q in questions if q.in_wrong_pool],
+        pool_retryable=sum(askable(q, "retry_wrong") for q in questions),
+        pool_exit_streak=POOL_EXIT_STREAK,
         open_attempt=open_attempt(session, exam.id),
         delete_confirm=_delete_confirm(request, exam),
         history=finished_attempts(session, exam.id),
@@ -49,6 +53,13 @@ def exam_page(
 @router.get("/exams/{exam_id}", response_class=HTMLResponse)
 def exam_detail(request: Request, session: SessionDep, exam_id: int):
     return exam_page(request, session, get_or_404(session, Exam, exam_id))
+
+
+@router.post("/questions/{question_id}/pool/remove")
+def remove_from_pool_form(request: Request, session: SessionDep, question_id: int):
+    question = get_or_404(session, Question, question_id)
+    remove_from_pool(session, question)
+    return redirect(request, "exam_detail", exam_id=question.exam_id)
 
 
 @router.post("/exams/{exam_id}/delete")
