@@ -215,3 +215,14 @@ def test_delete_warns_when_file_comes_back(settings) -> None:
         assert warning not in client.get(f"/exams/{uploaded.id}").text
         page = client.get(f"/courses/{course_id}").text
         assert "neu importiert: Klausur" in page
+
+
+def test_export_download(client) -> None:
+    _upload(client, ("Mein Export.json", exam(single(question="Ä?"))))
+    with _db(client) as session:
+        exam_id = session.exec(select(Exam)).one().id
+    response = client.get(f"/exams/{exam_id}/export")
+    assert response.headers["content-type"] == "application/json"
+    assert "filename*=UTF-8''Mein%20Export.json" in response.headers["content-disposition"]
+    assert '"question": "Ä?"' in response.text
+    assert "Als JSON exportieren" in client.get(f"/exams/{exam_id}").text

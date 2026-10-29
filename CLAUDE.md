@@ -179,7 +179,7 @@ Eine Datei = eine Probeklausur. Schema wird als Pydantic-Modell implementiert un
 - [x] **Falsch-Pool pro Quiz** wiederholen (siehe §6), Pool-Liste auf der Exam-Seite (Wiederholen bietet Feedback-Modus, Anzahl und Mischen, keine Themenfilter)
 - [x] Fragen **markieren** (Stern) und **deaktivieren** (im Quiz, in der Auswertung und in der Fragenliste der Exam-Seite); Übung: „nur markierte" (deaktivierte fallen immer weg); „Lernstand zurücksetzen" pro Exam und global (Kursliste), „Verlauf löschen" pro Exam
 - [x] Fragen und Antwortoptionen zufällig mischen
-- [ ] **Export** eines Quiz zurück nach JSON
+- [x] **Export** eines Quiz zurück nach JSON (Button auf der Exam-Seite; `course` = Import-Name, eigene statt Kurs-Defaults)
 - [ ] **Tastatursteuerung** (1–5 bzw. A–E zum Auswählen, Enter = weiter, ←/→ navigieren, S = markieren)
 - [ ] Hell/Dunkel-Modus
 

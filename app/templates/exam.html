@@ -182,6 +182,7 @@
 
 <hr>
 <div class="actions">
+  <a role="button" class="secondary outline" href="{{ path('export_exam_file', exam_id=exam.id) }}" download>{{ t("exam.export") }}</a>
   {{ confirm_form(path('reset_exam_learning', exam_id=exam.id), t("learning.reset"), t("learning.reset_confirm"), "secondary outline") }}
   {% if history %}{{ confirm_form(path('delete_exam_history', exam_id=exam.id), t("history.delete_all"), t("history.delete_all_confirm")) }}{% endif %}
 </div>
