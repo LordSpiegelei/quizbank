@@ -1,8 +1,8 @@
 """Scoring rules (CLAUDE.md §10) as pure functions, independent of the database."""
 
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Any, Protocol
 
 from app.schemas import MultipleScoring
 
@@ -56,6 +56,19 @@ def score_open(points: float, self_score: float | None) -> AnswerScore:
         return AnswerScore(0, points, None)
     score = min(max(self_score, 0), points)
     return AnswerScore(score, points, score >= points)
+
+
+def self_score_from(
+    points: float, rubric: Sequence[Mapping[str, Any]] | None, scores: Sequence[float]
+) -> float:
+    """The self-assessed total of an open question: one score per rubric criterion (each
+    0..its points), or a single 0..points score without a rubric. Raises ValueError."""
+    limits = [item["points"] for item in rubric] if rubric else [points]
+    if len(scores) != len(limits):
+        raise ValueError("one score per rubric criterion")
+    if any(not 0 <= score <= limit for score, limit in zip(scores, limits, strict=True)):
+        raise ValueError("score out of range")
+    return sum(scores)
 
 
 def score_question(

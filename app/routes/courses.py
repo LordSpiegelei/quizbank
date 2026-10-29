@@ -6,6 +6,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlmodel import Session, col, func, or_, select
 
 from app.db import SessionDep, get_or_404
+from app.forms import FormError, optional_number
 from app.importer import comes_back_on_restart
 from app.models import Attempt, Course, Exam, Question
 from app.queries import last_finished_attempts
@@ -14,15 +15,6 @@ from app.templating import redirect, render
 router = APIRouter()
 
 SortKey = Literal["name", "recent"]
-
-
-class FormError(ValueError):
-    """Validation failure; carries a locale key so callers stay free of translation."""
-
-    def __init__(self, key: str, **params: object) -> None:
-        super().__init__(key)
-        self.key = key
-        self.params = params
 
 
 def _valid_name(session: Session, name: str, course_id: int | None) -> str:
@@ -36,19 +28,6 @@ def _valid_name(session: Session, name: str, course_id: int | None) -> str:
     if session.exec(stmt).first() is not None:
         raise FormError("error.name_taken")
     return name
-
-
-def _optional_number[T: (int, float)](raw: str, kind: type[T]) -> T | None:
-    value = raw.strip()
-    if not value:
-        return None
-    try:
-        number = kind(value.replace(",", "."))  # accept decimal comma and point
-    except ValueError:
-        raise FormError("error.not_a_number", value=value) from None
-    if number < 0:
-        raise FormError("error.not_a_number", value=value)
-    return number
 
 
 def _error_text(request: Request, exc: FormError) -> str:
@@ -143,8 +122,8 @@ def update_course(
     try:
         label = _valid_name(session, name, course.id)
         values = {
-            "default_time_limit": _optional_number(default_time_limit, int),
-            "default_pass_mark": _optional_number(default_pass_mark, float),
+            "default_time_limit": optional_number(default_time_limit, int),
+            "default_pass_mark": optional_number(default_pass_mark, float),
         }
     except FormError as exc:
         error = _error_text(request, exc)

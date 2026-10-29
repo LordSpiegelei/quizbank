@@ -16,9 +16,11 @@ from app.attempts import (
     review_item,
     review_items,
     save_answer,
+    self_assess,
     start_attempt,
 )
 from app.db import SessionDep, get_or_404
+from app.forms import optional_number
 from app.learning import FLAGS
 from app.markdown import render_markdown, render_markdown_inline
 from app.models import Answer, Attempt, Exam, Question, utcnow
@@ -193,14 +195,43 @@ def attempt_review(request: Request, session: SessionDep, attempt_id: int):
     attempt = get_or_404(session, Attempt, attempt_id)
     if attempt.finished_at is None:
         return redirect(request, "attempt_page", attempt_id=attempt.id)
+    return _review_page(request, session, attempt)
+
+
+def _review_page(
+    request: Request, session: Session, attempt: Attempt, status_code: int = 200, **extra
+) -> HTMLResponse:
     return render(
         request,
         "review.html",
+        status_code=status_code,
         attempt=attempt,
         exam=attempt.exam,
         items=review_items(attempt),
         questions=live_questions(session, attempt),
+        **extra,
     )
+
+
+@router.post("/attempts/{attempt_id}/answers/{answer_id}/assess")
+def self_assess_form(
+    request: Request,
+    session: SessionDep,
+    attempt_id: int,
+    answer_id: int,
+    rubric: Annotated[list[str], Form()] = [],  # noqa: B006 (FastAPI copies defaults)
+    self_score: Annotated[str, Form()] = "",
+):
+    """One score per rubric criterion, or `self_score` for an open question without rubric."""
+    attempt, answer = _attempt_answer(session, attempt_id, answer_id)
+    try:
+        scores = [optional_number(raw, float) or 0.0 for raw in rubric or [self_score]]
+        self_assess(session, attempt, answer, scores)
+    except ValueError:  # FormError is one too
+        error = request.app.state.t("assess.invalid")
+        return _review_page(request, session, attempt, status_code=422, error=error)
+    fragment = f"q{answer.position + 1}"
+    return redirect(request, "attempt_review", fragment=fragment, attempt_id=attempt.id)
 
 
 @router.post("/attempts/{attempt_id}/delete")

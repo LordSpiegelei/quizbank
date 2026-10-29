@@ -153,7 +153,7 @@ Eine Datei = eine Probeklausur. Schema wird als Pydantic-Modell implementiert un
 - `score`/`max_score`/`passed` werden beim Abschluss gespeichert und nur bei einer Selbstbewertung aus dem Snapshot neu berechnet
 
 ### Falsch-Pool (pro Exam)
-- **Rein**: Fragen, die in einem **abgeschlossenen Versuch beliebigen Modus** falsch, teilweise richtig oder unbeantwortet waren (`open`: Selbstbewertung unter voller Punktzahl). `pool_streak` wird auf 0 gesetzt. Aktualisiert wird beim Abschluss (auch lazy), nie während des Versuchs; verworfene Versuche ändern nichts
+- **Rein**: Fragen, die in einem **abgeschlossenen Versuch beliebigen Modus** falsch, teilweise richtig oder unbeantwortet waren (`open`: Selbstbewertung unter voller Punktzahl). `pool_streak` wird auf 0 gesetzt. Aktualisiert wird beim Abschluss (auch lazy), nie während des Versuchs; verworfene Versuche ändern nichts. `open`-Fragen zählen bei ihrer **ersten** Selbstbewertung, spätere Korrekturen ändern den Pool nicht
 - **Raus**: nach **2 richtigen Antworten in Folge** (in jedem Modus) oder manuell („aus Pool entfernen"). Reine Funktion `update_pool(in_pool, streak, is_correct)` in `scoring.py`, Schwelle als Konstante
 - **Wiederholen** (`retry_wrong`): der ganze Pool ohne deaktivierte Fragen, optional eine zufällige Stichprobe. Die Exam-Seite zeigt die Pool-Größe und eine Pool-Liste; bei leerem Pool ist der Button ausgegraut
 - Statistik pro Thema: **Snapshot-Thema** abgeschlossener Versuche aller Modi; `open` erst nach Selbstbewertung; teilweise richtig zählt als falsch
@@ -188,8 +188,8 @@ Eine Datei = eine Probeklausur. Schema wird als Pydantic-Modell implementiert un
 - [x] Statistik pro Thema (Trefferquote über alle Versuche), Verlauf als einfaches Diagramm (Exam-Seite: CSS-Balken + SVG-Linie, ohne Chart.js)
 
 ### Phase 3 – Case Studies
-- [ ] Fragetyp `open`: Textfeld, nach Abgabe Musterlösung + Raster, Selbstbewertung pro Kriterium
-- [ ] Export einer Antwort als Text (zum Einfügen in den Claude-Chat)
+- [x] Fragetyp `open`: Textfeld, nach Abgabe Musterlösung + Raster, Selbstbewertung pro Kriterium (auf der Auswertungsseite; berechnet Punkte und `passed` neu)
+- [x] Export einer Antwort als Text (zum Einfügen in den Claude-Chat): „Für Claude kopieren" mit Aufgabe, Raster, Musterlösung und eigener Antwort
 
 ### Phase 4 – Teilen
 - [ ] README (Englisch) mit Screenshots, Quickstart, Format-Doku

@@ -1,0 +1,28 @@
+{#- An open question with the user's answer, to paste into a Claude chat for grading
+    (no AI grading inside the app). Plain text; autoescaping is right inside <textarea>. -#}
+{{ t("case.prompt") }}
+
+## {{ t("case.task", points=q.points | num) }}
+{%- if q.scenario %}
+
+{{ q.scenario }}
+{%- endif %}
+
+{{ q.question }}
+{%- if q.rubric %}
+
+## {{ t("review.rubric") }}
+{% for row in q.rubric %}
+- {{ row.criterion }} ({{ row.points | num }})
+{%- endfor %}
+{%- endif %}
+{%- if q.model_answer %}
+
+## {{ t("review.model_answer") }}
+
+{{ q.model_answer }}
+{%- endif %}
+
+## {{ t("review.your_answer") }}
+
+{{ answer.text_answer or t("review.no_answer") }}

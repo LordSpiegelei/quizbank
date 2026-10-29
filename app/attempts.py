@@ -14,7 +14,13 @@ from sqlmodel import Session, col, select
 from app.models import Answer, Attempt, Exam, Question, utcnow
 from app.queries import live_questions
 from app.schemas import QUESTION_FIELDS, MultipleScoring
-from app.scoring import AnswerScore, score_question, summarize, update_pool
+from app.scoring import (
+    AnswerScore,
+    score_question,
+    self_score_from,
+    summarize,
+    update_pool,
+)
 
 # Every content field of the import format (CLAUDE.md §6), so new fields are frozen too.
 SNAPSHOT_FIELDS = set().union(*QUESTION_FIELDS.values())
@@ -235,6 +241,21 @@ def review_items(attempt: Attempt) -> list[ReviewItem]:
     return [review_item(answer, attempt.multiple_scoring) for answer in attempt.answers]
 
 
+def _update_pool(question: Question | None, is_correct: bool | None) -> None:
+    """Judged answers move their live question in or out of the wrong pool."""
+    if question is not None and is_correct is not None:
+        question.in_wrong_pool, question.pool_streak = update_pool(
+            question.in_wrong_pool, question.pool_streak, is_correct
+        )
+
+
+def _total(attempt: Attempt) -> None:
+    """Score, maximum and pass/fail from the snapshots; open questions keep passed pending."""
+    results = [score_answer(answer, attempt.multiple_scoring) for answer in attempt.answers]
+    total = summarize(results, attempt.pass_mark)
+    attempt.score, attempt.max_score, attempt.passed = total.score, total.max_score, total.passed
+
+
 def finish(session: Session, attempt: Attempt, now: datetime | None = None) -> None:
     """Score the attempt, update the wrong pool and close it (at the deadline at the latest)."""
     if attempt.finished_at is not None:
@@ -244,20 +265,10 @@ def finish(session: Session, attempt: Attempt, now: datetime | None = None) -> N
         end = min(end, attempt.deadline)
 
     questions = live_questions(session, attempt)  # for the wrong pool
-
-    results = []
     for answer in attempt.answers:
-        result = score_answer(answer, attempt.multiple_scoring)
-        answer.is_correct = result.is_correct
-        results.append(result)
-        question = questions.get(answer.question_id)
-        if question is not None and result.is_correct is not None:
-            question.in_wrong_pool, question.pool_streak = update_pool(
-                question.in_wrong_pool, question.pool_streak, result.is_correct
-            )
-
-    total = summarize(results, attempt.pass_mark)
-    attempt.score, attempt.max_score, attempt.passed = total.score, total.max_score, total.passed
+        answer.is_correct = score_answer(answer, attempt.multiple_scoring).is_correct
+        _update_pool(questions.get(answer.question_id), answer.is_correct)
+    _total(attempt)
     attempt.finished_at = end
     attempt.duration_seconds = int((end - attempt.started_at).total_seconds())
     session.commit()
@@ -326,3 +337,24 @@ def reveal(session: Session, attempt: Attempt, answer: Answer, now: datetime | N
     if not answer.revealed:
         answer.revealed = True
         session.commit()
+
+
+def self_assess(session: Session, attempt: Attempt, answer: Answer, scores: list[float]) -> None:
+    """Self-assessment of an open question after submitting (CLAUDE.md §10). Rescores the
+    attempt; the first assessment also counts for the wrong pool, later corrections don't
+    (no farming the streak). Raises ValueError for anything out of range."""
+    snap = answer.snapshot
+    if attempt.finished_at is None:
+        raise ValueError("assess after submitting")
+    if snap["type"] != "open":
+        raise ValueError("only open questions are self-assessed")
+    total = self_score_from(snap["points"], snap["rubric"], scores)
+
+    first = answer.self_score is None
+    answer.rubric_scores = scores if snap["rubric"] else None
+    answer.self_score = total
+    answer.is_correct = score_answer(answer, attempt.multiple_scoring).is_correct
+    if first:
+        _update_pool(answer.question, answer.is_correct)
+    _total(attempt)
+    session.commit()

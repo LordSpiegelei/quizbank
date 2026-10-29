@@ -50,9 +50,10 @@ def make_templates(t: Translator, url_path_for: Callable[..., Any]) -> Jinja2Tem
     return templates
 
 
-def redirect(request: Request, name: str, **params: Any) -> RedirectResponse:
+def redirect(request: Request, name: str, fragment: str = "", **params: Any) -> RedirectResponse:
     """303 See Other to a named route, the answer to a successful form POST."""
-    return RedirectResponse(request.app.url_path_for(name, **params), status_code=303)
+    url = str(request.app.url_path_for(name, **params))
+    return RedirectResponse(f"{url}#{fragment}" if fragment else url, status_code=303)
 
 
 def redirect_back(request: Request, next_url: str, fallback: str, **params: Any) -> Response:
