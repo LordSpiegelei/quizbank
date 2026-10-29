@@ -99,8 +99,9 @@ document.addEventListener("alpine:init", () => {
         event.preventDefault();
       },
 
-      // A UI text with {placeholders} filled in.
+      // A UI text with {placeholders} filled in; "<key>.one" when n is 1, as in app/locales.
       fmt(key, vars = {}) {
+        if (vars.n == 1 && this.texts[`${key}.one`]) key = `${key}.one`;
         return this.texts[key].replace(/\{(\w+)\}/g, (_, name) => vars[name]);
       },
 

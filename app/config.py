@@ -23,5 +23,5 @@ class Settings:
             db_path=Path(os.environ.get("DB_PATH", "./data/quizbank.db")),
             questions_dir=Path(os.environ.get("QUESTIONS_DIR", "./questions")),
             auto_import=_env_bool("AUTO_IMPORT", True),
-            app_lang=os.environ.get("APP_LANG", "de"),
+            app_lang=os.environ.get("APP_LANG", "en"),
         )
