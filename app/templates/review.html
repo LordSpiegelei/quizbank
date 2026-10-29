@@ -42,10 +42,39 @@
     {% if answer.text_answer %}<blockquote class="text-answer">{{ answer.text_answer }}</blockquote>
     {% else %}<p><em>{{ t("review.no_answer") }}</em></p>{% endif %}
     {% if q.model_answer %}<h4>{{ t("review.model_answer") }}</h4>{{ q.model_answer | md }}{% endif %}
-    {% if q.rubric %}
-      <h4>{{ t("review.rubric") }}</h4>
-      <ul>{% for row in q.rubric %}<li>{{ row.criterion }} ({{ t("common.points", n=row.points | num) }})</li>{% endfor %}</ul>
-    {% endif %}
+    <h4>{{ t("assess.title") }}</h4>
+    <form method="post" class="assess" action="{{ path('self_assess_form', attempt_id=attempt.id, answer_id=answer.id) }}">
+      {% if q.rubric %}
+      <table>
+        <thead><tr><th>{{ t("review.rubric") }}</th><th class="num">{{ t("assess.points") }}</th></tr></thead>
+        <tbody>
+          {% for row in q.rubric %}
+          <tr>
+            <td>{{ row.criterion }}</td>
+            <td class="num">
+              <input type="number" name="rubric" min="0" max="{{ row.points }}" step="any" required
+                     value="{{ answer.rubric_scores[loop.index0] | num if answer.rubric_scores else '' }}"
+                     aria-label="{{ row.criterion }}"> / {{ row.points | num }}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <label>{{ t("assess.score") }}
+        <input type="number" name="self_score" min="0" max="{{ q.points }}" step="any" required
+               value="{{ answer.self_score | num }}"> / {{ q.points | num }}
+      </label>
+      {% endif %}
+      <button type="submit">{{ t("assess.save") if answer.self_score is none else t("assess.update") }}</button>
+    </form>
+    <details class="case-text">
+      <summary>{{ t("case.copy_title") }}</summary>
+      <p><small>{{ t("case.copy_hint") }}</small></p>
+      <textarea readonly rows="10">{% include "case_text.txt" %}</textarea>
+      <button type="button" class="secondary" data-done="{{ t('case.copied') }}"
+              onclick="navigator.clipboard.writeText(this.previousElementSibling.value).then(() => this.textContent = this.dataset.done)">{{ t("case.copy") }}</button>
+    </details>
   {% else %}
     <ol class="review-options" type="A">
       {% for option in item.options %}

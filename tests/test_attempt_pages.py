@@ -4,7 +4,7 @@ import re
 from sqlmodel import select
 
 from app.models import Answer, Attempt, Exam
-from tests.factories import db, exam, single, upload
+from tests.factories import db, exam, open_q, single, upload
 
 
 def _setup(client, *questions, **overrides) -> int:
@@ -289,3 +289,37 @@ def test_exam_page_statistics(client) -> None:
     assert "Geometrie: 0 von 2 richtig" in page
     assert page.index("Geometrie: 0") < page.index("Algebra: 1")  # weakest first
     assert 'class="line-chart"' in page
+
+
+def test_self_assessment_on_review_page(client) -> None:
+    rubric = [{"criterion": "Risiken", "points": 2}, {"criterion": "Empfehlung", "points": 3}]
+    exam_id = _setup(client, open_q(points=5, rubric=rubric, model_answer="Muster"), pass_mark=4)
+    attempt_id = _start(client, exam_id)
+    url = _quiz_data(client.get(f"/attempts/{attempt_id}").text)["questions"][0]["url"]
+    client.put(url, json={"text_answer": "Meine Antwort"})
+    client.post(f"/attempts/{attempt_id}/finish")
+
+    review = client.get(f"/attempts/{attempt_id}/review").text
+    assert "noch nicht bewertet" in review
+    assert "Bewertung speichern" in review
+    assert "Für Claude kopieren" in review
+    copy_text = review.split("<textarea readonly", 1)[1].split("</textarea>", 1)[0]
+    for part in ("- Risiken (2)", "## Musterlösung\n\nMuster", "## Deine Antwort\n\nMeine Antwort"):
+        assert part in copy_text
+
+    with db(client) as session:
+        answer_id = session.get(Attempt, attempt_id).answers[0].id
+    assess = f"/attempts/{attempt_id}/answers/{answer_id}/assess"
+    response = client.post(assess, data={"rubric": ["2", "1,5"]}, follow_redirects=False)
+    assert response.headers["location"] == f"/attempts/{attempt_id}/review#q1"
+    review = client.get(f"/attempts/{attempt_id}/review").text
+    assert "teilweise richtig" in review
+    assert "Bewertung ändern" in review
+    assert "bestanden" in review  # 3.5 < 4 -> "nicht bestanden"
+    with db(client) as session:
+        attempt = session.get(Attempt, attempt_id)
+        assert (attempt.score, attempt.passed) == (3.5, False)
+
+    response = client.post(assess, data={"rubric": ["9", "0"]})
+    assert response.status_code == 422
+    assert "Die Bewertung ist ungültig" in response.text

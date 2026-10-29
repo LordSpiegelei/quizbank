@@ -16,6 +16,7 @@ from app.attempts import (
     reveal,
     save_answer,
     score_answer,
+    self_assess,
     shuffle_options,
     start_attempt,
 )
@@ -371,3 +372,62 @@ def test_delete_history_keeps_open_attempt_and_pool(session) -> None:
     session.expire_all()
     assert session.exec(select(Attempt)).all() == [running]
     assert exam_row.questions[0].in_wrong_pool  # filled by the deleted attempt, kept
+
+
+RUBRIC = [{"criterion": "Nennt Risiken", "points": 4}, {"criterion": "Empfiehlt", "points": 6}]
+
+
+def _case_attempt(session, **open_fields) -> Attempt:
+    exam_row = _exam(session, single(), open_q(points=10, **open_fields), pass_mark=8)
+    attempt = start_attempt(session, exam_row, now=T0)
+    save_answer(session, attempt, attempt.answers[0], selected=[1], now=T0)
+    save_answer(session, attempt, attempt.answers[1], text_answer="Meine Analyse", now=T0)
+    finish(session, attempt, now=T0)
+    return attempt
+
+
+def test_self_assess_with_rubric_rescores_attempt(session) -> None:
+    attempt = _case_attempt(session, rubric=RUBRIC)
+    answer = attempt.answers[1]
+    assert (attempt.score, attempt.passed) == (1, None)  # pending until assessed
+
+    self_assess(session, attempt, answer, [2, 5])
+    assert (answer.self_score, answer.rubric_scores, answer.is_correct) == (7, [2, 5], False)
+    assert (attempt.score, attempt.max_score, attempt.passed) == (8, 11, True)
+
+    self_assess(session, attempt, answer, [4, 6])  # full points: correct
+    assert answer.is_correct is True
+    assert attempt.score == 11
+
+
+def test_self_assess_without_rubric(session) -> None:
+    attempt = _case_attempt(session)
+    self_assess(session, attempt, attempt.answers[1], [3.5])
+    assert attempt.answers[1].self_score == 3.5
+    assert attempt.passed is False  # 1 + 3.5 < 8
+
+
+def test_self_assess_rejects_invalid(session) -> None:
+    attempt = _case_attempt(session, rubric=RUBRIC)
+    with pytest.raises(ValueError):
+        self_assess(session, attempt, attempt.answers[1], [5, 0])
+    assert attempt.answers[1].self_score is None  # nothing stored
+
+
+def test_self_assess_only_open_and_after_submitting(session) -> None:
+    attempt = _case_attempt(session)
+    with pytest.raises(ValueError):
+        self_assess(session, attempt, attempt.answers[0], [1])  # choice question
+    running = start_attempt(session, _exam(session, open_q(), title="Andere"), now=T0)
+    with pytest.raises(ValueError):
+        self_assess(session, running, running.answers[0], [1])
+
+
+def test_first_self_assessment_counts_for_pool(session) -> None:
+    attempt = _case_attempt(session, rubric=RUBRIC)
+    answer = attempt.answers[1]
+    question = answer.question
+    self_assess(session, attempt, answer, [1, 1])
+    assert (question.in_wrong_pool, question.pool_streak) == (True, 0)
+    self_assess(session, attempt, answer, [4, 6])  # a correction, not a new answer
+    assert (question.in_wrong_pool, question.pool_streak) == (True, 0)

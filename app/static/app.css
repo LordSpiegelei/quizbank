@@ -83,3 +83,8 @@ button.theme-toggle { padding: 0.25rem 0.75rem; }
 .line-chart .dot { fill: var(--pico-primary); stroke: var(--pico-background-color); stroke-width: 2; pointer-events: none; }
 .line-chart .hit { fill: transparent; }
 .line-chart a:hover .dot, .line-chart a:focus .dot { r: 6; }
+
+/* Self-assessment */
+form.assess input[type="number"] { width: 6rem; display: inline-block; margin: 0; }
+form.assess td { vertical-align: middle; }
+.case-text textarea { font-family: var(--pico-font-family-monospace); font-size: 0.85em; }

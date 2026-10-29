@@ -7,6 +7,7 @@ from app.scoring import (
     ExamScore,
     score_open,
     score_question,
+    self_score_from,
     summarize,
     update_pool,
 )
@@ -114,3 +115,23 @@ def test_summarize_empty() -> None:
 )
 def test_update_pool(in_pool, streak, is_correct, expected) -> None:
     assert update_pool(in_pool, streak, is_correct) == expected
+
+
+RUBRIC = [{"criterion": "a", "points": 4}, {"criterion": "b", "points": 6}]
+
+
+@pytest.mark.parametrize(
+    ("rubric", "scores", "total"),
+    [(RUBRIC, [2, 5.5], 7.5), (RUBRIC, [4, 6], 10), (None, [3], 3), (None, [0], 0)],
+)
+def test_self_score_from(rubric, scores, total) -> None:
+    assert self_score_from(10, rubric, scores) == total
+
+
+@pytest.mark.parametrize(
+    ("rubric", "scores"),
+    [(RUBRIC, [5, 0]), (RUBRIC, [1]), (RUBRIC, [-1, 2]), (None, [11]), (None, []), (None, [1, 2])],
+)
+def test_self_score_from_rejects(rubric, scores) -> None:
+    with pytest.raises(ValueError):
+        self_score_from(10, rubric, scores)
