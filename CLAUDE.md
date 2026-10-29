@@ -145,6 +145,8 @@ Eine Datei = eine Probeklausur. Schema wird als Pydantic-Modell implementiert un
 ### Versuchsablauf
 - **Klausurmodus**: immer **alle** Fragen (ignoriert `disabled`), `feedback = end`. `disabled` und Filter gelten nur für Übung und Wiederholen
 - **Timer**: Server-Deadline `deadline = started_at + limit`, Uhrzeit läuft weiter, auch während die Seite geschlossen ist. Der Client bekommt die Restsekunden vom Server. Abgelaufene Versuche werden **lazy** abgeschlossen (`finalize_expired`, beim Lesen von Versuchen und bei jedem Schreibzugriff), mit `finished_at = deadline`. Unbeantwortete Fragen zählen 0. Ohne Klausurmodus kein Countdown, nur verstrichene Zeit
+- **Übung**: Themen und Tags filtern jeweils mit ODER (keine Auswahl = alle), beide zusammen mit UND; deaktivierte Fragen fallen weg; „Anzahl" zieht eine Zufallsstichprobe (ohne Mischen in Dateireihenfolge). Kein Countdown, keine Bestehensgrenze, nur verstrichene Zeit. Mischen von Fragen/Optionen geht in beiden Modi
+- **Sofort-Feedback**: „Prüfen"-Button pro Frage (auch für `multiple`/`open`), erst danach „Weiter"; die Einstellungen des Start-Dialogs liegen in `Attempt.filter`, „Verwerfen und neu starten" übernimmt sie
 - **Höchstens ein unfertiger Versuch pro Exam**: „Fortsetzen" oder „Verwerfen und neu starten" (Verwerfen löscht den Versuch)
 - **Lösungen erst dann zum Client, wenn sie gezeigt werden dürfen**: die Start-Daten enthalten nur Frage, Optionen, Szenario, Thema, Punkte und das aktuelle `selected`. Sofort-Feedback läuft über einen `reveal`-Endpunkt (setzt `revealed`, die Antwort ist danach gesperrt), sonst über die Auswertungsseite nach der Abgabe
 - **Antwort speichern**: `PUT /api/attempts/{id}/answers/{answer_id}` mit `{selected}` oder `{text_answer}`; **409**, wenn der Versuch beendet ist, die Deadline überschritten ist (löst den Abschluss aus) oder die Antwort `revealed` ist. Prüft die Indizes und bei `single` genau einen Eintrag
@@ -172,11 +174,11 @@ Eine Datei = eine Probeklausur. Schema wird als Pydantic-Modell implementiert un
 - [x] **Ergebnis-Historie pro Quiz** (Versuche speichern und auflisten)
 
 ### Phase 2 – Lernfunktionen (Funktionsumfang wie quiz-prep)
-- [ ] Start-Dialog: Quiz wählen, **Filter nach Thema/Tags**, Fragenanzahl, Timer an/aus
-- [ ] Zwei Feedback-Modi: **Sofort-Feedback** nach jeder Frage oder **Auswertung erst am Ende**
+- [x] Start-Dialog auf der Exam-Seite: Klausur oder Übung, **Filter nach Thema/Tags**, Fragenanzahl (Übung ohne Countdown, siehe §6)
+- [x] Zwei Feedback-Modi: **Sofort-Feedback** nach jeder Frage („Prüfen"-Button) oder **Auswertung erst am Ende**
 - [ ] **Falsch-Pool pro Quiz** wiederholen (siehe §6), Pool-Liste auf der Exam-Seite
 - [ ] Fragen **markieren** (Stern) und **deaktivieren**; beim Start filtern: alle / nur markierte / ohne deaktivierte; „Lernstand zurücksetzen" in den Einstellungen
-- [ ] Fragen und Antwortoptionen zufällig mischen
+- [x] Fragen und Antwortoptionen zufällig mischen
 - [ ] **Export** eines Quiz zurück nach JSON
 - [ ] **Tastatursteuerung** (1–5 bzw. A–E zum Auswählen, Enter = weiter, ←/→ navigieren, S = markieren)
 - [ ] Hell/Dunkel-Modus

@@ -1,11 +1,14 @@
 """Attempt lifecycle: start with frozen question snapshots, save answers, finish and score."""
 
+import random
+from collections.abc import Sequence
 from copy import deepcopy
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from types import SimpleNamespace
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
+from pydantic import BaseModel, BeforeValidator, PositiveInt, model_validator
 from sqlmodel import Session, col, select
 
 from app.models import Answer, Attempt, Exam, Question, utcnow
@@ -15,6 +18,8 @@ from app.scoring import AnswerScore, score_question, summarize, update_pool
 # Every content field of the import format (CLAUDE.md §6), so new fields are frozen too.
 SNAPSHOT_FIELDS = set().union(*(model.model_fields for model in QUESTION_MODELS)) - {"id"}
 
+Mode = Literal["exam", "practice"]
+Feedback = Literal["instant", "end"]
 LockReason = Literal["finished", "expired", "revealed"]
 AnswerStatus = Literal["correct", "partial", "wrong", "unanswered", "pending"]
 
@@ -27,8 +32,82 @@ class AttemptLocked(Exception):
         self.reason = reason
 
 
+class NoQuestions(Exception):
+    """The filters left no question to ask."""
+
+
+def _blank_to_none(value: Any) -> Any:
+    return None if value == "" else value  # an empty form field means "no limit"
+
+
+class StartOptions(BaseModel):
+    """What the start dialog chose (it is the form model too); kept in Attempt.filter so a
+    restart can repeat it."""
+
+    mode: Mode = "exam"
+    feedback: Feedback = "end"
+    topics: list[str] = []
+    tags: list[str] = []
+    count: Annotated[PositiveInt | None, BeforeValidator(_blank_to_none)] = None
+    shuffle_questions: bool = False
+    shuffle_options: bool = False
+
+    @model_validator(mode="before")
+    @classmethod
+    def _exam_asks_everything(cls, data: Any) -> Any:
+        """Exam mode: all questions, feedback at the end; practice settings don't apply."""
+        if isinstance(data, dict) and data.get("mode", "exam") == "exam":
+            return {**data, "feedback": "end", "topics": [], "tags": [], "count": None}
+        return data
+
+    @classmethod
+    def of(cls, attempt: Attempt) -> "StartOptions":
+        stored = attempt.filter or {}
+        return cls.model_validate(stored | {"mode": attempt.mode, "feedback": attempt.feedback})
+
+    def as_filter(self) -> dict[str, Any]:
+        return self.model_dump(exclude={"mode", "feedback"})
+
+
+EXAM = StartOptions()
+
+
 def snapshot(question: Question) -> dict[str, Any]:
     return {name: deepcopy(getattr(question, name)) for name in SNAPSHOT_FIELDS}
+
+
+def pick_questions(
+    questions: Sequence[Question], options: StartOptions, rng: random.Random
+) -> list[Question]:
+    """Practice skips disabled questions (exam mode asks everything). Topics and tags each
+    match any of the chosen values; `count` draws a random sample."""
+    topics, tags = set(options.topics), set(options.tags)
+    picked = [
+        q
+        for q in questions
+        if (options.mode == "exam" or not q.disabled)
+        and (not topics or q.topic in topics)
+        and (not tags or tags.intersection(q.tags))
+    ]
+    if options.count is not None and options.count < len(picked):
+        picked = sorted(rng.sample(picked, options.count), key=lambda q: q.position)
+    if options.shuffle_questions:
+        rng.shuffle(picked)
+    return picked
+
+
+def shuffle_options(snap: dict[str, Any], rng: random.Random) -> dict[str, Any]:
+    """Options in random order, with `correct` and `option_explanations` mapped along."""
+    if not snap["options"]:
+        return snap
+    order = rng.sample(range(len(snap["options"])), len(snap["options"]))
+    shuffled = snap | {
+        "options": [snap["options"][i] for i in order],
+        "correct": sorted(order.index(i) for i in snap["correct"]),
+    }
+    if snap["option_explanations"]:
+        shuffled["option_explanations"] = [snap["option_explanations"][i] for i in order]
+    return shuffled
 
 
 def open_attempt(session: Session, exam_id: int) -> Attempt | None:
@@ -38,23 +117,40 @@ def open_attempt(session: Session, exam_id: int) -> Attempt | None:
     ).first()
 
 
-def start_exam_attempt(session: Session, exam: Exam, now: datetime | None = None) -> Attempt:
-    """Exam mode: every question in file order (ignores `disabled`), feedback at the end."""
-    now = now or utcnow()
-    limit = exam.effective_time_limit
+def start_attempt(
+    session: Session,
+    exam: Exam,
+    options: StartOptions = EXAM,
+    now: datetime | None = None,
+    rng: random.Random | None = None,
+) -> Attempt:
+    """Exam mode has the countdown and the pass mark, practice neither.
+    Raises NoQuestions when the filters match nothing."""
+    now, rng = now or utcnow(), rng or random.Random()
+    questions = pick_questions(exam.questions, options, rng)
+    if not questions:
+        raise NoQuestions
+    # Read the exam settings first: the lazy course load would autoflush half-built answers.
+    is_exam = options.mode == "exam"
+    limit = exam.effective_time_limit if is_exam else None
+    pass_mark = exam.effective_pass_mark if is_exam else None
+    answers = []
+    for position, question in enumerate(questions):
+        snap = snapshot(question)
+        if options.shuffle_options:
+            snap = shuffle_options(snap, rng)
+        answers.append(Answer(question=question, position=position, snapshot=snap))
     attempt = Attempt(
         exam=exam,
-        mode="exam",
-        feedback="end",
-        pass_mark=exam.effective_pass_mark,
+        mode=options.mode,
+        feedback=options.feedback,
+        filter=options.as_filter(),
+        pass_mark=pass_mark,
         time_limit_minutes=limit,
         multiple_scoring=exam.multiple_scoring,
         started_at=now,
         deadline=now + timedelta(minutes=limit) if limit else None,
-        answers=[
-            Answer(question=question, position=position, snapshot=snapshot(question))
-            for position, question in enumerate(exam.questions)
-        ],
+        answers=answers,
     )
     session.add(attempt)
     session.commit()
@@ -62,12 +158,12 @@ def start_exam_attempt(session: Session, exam: Exam, now: datetime | None = None
 
 
 def restart(session: Session, attempt: Attempt) -> Attempt:
-    """Discard an unfinished attempt and start a fresh one for the same exam."""
-    exam = attempt.exam
+    """Discard an unfinished attempt and start a fresh one with the same settings."""
+    exam, options = attempt.exam, StartOptions.of(attempt)
     if attempt.finished_at is None:
         session.delete(attempt)
         session.commit()
-    return open_attempt(session, exam.id) or start_exam_attempt(session, exam)
+    return open_attempt(session, exam.id) or start_attempt(session, exam, options)
 
 
 def score_answer(answer: Answer, multiple_scoring: MultipleScoring) -> AnswerScore:
@@ -105,21 +201,21 @@ class ReviewItem:
     options: list[ReviewOption]
 
 
+def review_item(answer: Answer, multiple_scoring: MultipleScoring) -> ReviewItem:
+    """The score, its status and each option marked correct/selected; used by the review
+    page and by instant feedback."""
+    snap, selected = answer.snapshot, set(answer.selected or ())
+    explanations = snap.get("option_explanations") or [None] * len(snap["options"])
+    options = [
+        ReviewOption(text, explanation, index in snap["correct"], index in selected)
+        for index, (text, explanation) in enumerate(zip(snap["options"], explanations, strict=True))
+    ]
+    result = score_answer(answer, multiple_scoring)
+    return ReviewItem(answer, result, answer_status(answer, result), options)
+
+
 def review_items(attempt: Attempt) -> list[ReviewItem]:
-    """Per question: the score, its status and each option marked correct/selected."""
-    items = []
-    for answer in attempt.answers:
-        snap, selected = answer.snapshot, set(answer.selected or ())
-        explanations = snap.get("option_explanations") or [None] * len(snap["options"])
-        options = [
-            ReviewOption(text, explanation, index in snap["correct"], index in selected)
-            for index, (text, explanation) in enumerate(
-                zip(snap["options"], explanations, strict=True)
-            )
-        ]
-        result = score_answer(answer, attempt.multiple_scoring)
-        items.append(ReviewItem(answer, result, answer_status(answer, result), options))
-    return items
+    return [review_item(answer, attempt.multiple_scoring) for answer in attempt.answers]
 
 
 def finish(session: Session, attempt: Attempt, now: datetime | None = None) -> None:
@@ -207,3 +303,13 @@ def save_answer(
             raise ValueError("choice questions take selected")
         answer.selected = _check_selected(answer.snapshot, selected or [])
     session.commit()
+
+
+def reveal(session: Session, attempt: Attempt, answer: Answer, now: datetime | None = None) -> None:
+    """Instant feedback: show the solution; the answer is locked from then on."""
+    _ensure_writable(session, attempt, now or utcnow())
+    if attempt.feedback != "instant":
+        raise ValueError("this attempt gives feedback at the end")
+    if not answer.revealed:
+        answer.revealed = True
+        session.commit()

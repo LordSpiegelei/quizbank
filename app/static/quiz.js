@@ -6,7 +6,9 @@ document.addEventListener("alpine:init", () => {
     return {
       questions: data.questions,
       texts: data.texts,
+      feedback: data.feedback, // "instant": a Prüfen button reveals each solution
       remaining: data.remaining, // seconds, from the server's deadline; null without time limit
+      elapsed: data.elapsed, // seconds since the start; shown when there is no countdown
       index: 0,
       status: "",
       pending: 0,
@@ -17,8 +19,17 @@ document.addEventListener("alpine:init", () => {
         return this.questions[this.index];
       },
 
+      get isLast() {
+        return this.index === this.questions.length - 1;
+      },
+
+      // With instant feedback, each question is checked before moving on.
+      get canAdvance() {
+        return this.feedback !== "instant" || this.current.solution !== null;
+      },
+
       get clock() {
-        const s = this.remaining ?? 0;
+        const s = this.remaining ?? this.elapsed;
         const pad = (n) => String(n).padStart(2, "0");
         const h = Math.floor(s / 3600);
         const m = Math.floor((s % 3600) / 60);
@@ -40,6 +51,9 @@ document.addEventListener("alpine:init", () => {
           };
           const timer = setInterval(tick, 1000);
           tick();
+        } else {
+          const start = Date.now() - this.elapsed * 1000;
+          setInterval(() => (this.elapsed = Math.round((Date.now() - start) / 1000)), 1000);
         }
         window.addEventListener("beforeunload", (event) => {
           if (this.pending) event.preventDefault();
@@ -61,8 +75,16 @@ document.addEventListener("alpine:init", () => {
         window.scrollTo({ top: 0 });
       },
 
+      optionClass(i) {
+        const s = this.current.solution;
+        if (!s) return {};
+        const correct = s.correct.includes(i);
+        return { correct, wrong: !correct && this.current.selected.includes(i) };
+      },
+
       toggle(i) {
         const q = this.current;
+        if (q.solution) return; // locked once revealed
         if (q.type === "single") {
           q.selected = [i];
         } else {
@@ -111,6 +133,23 @@ document.addEventListener("alpine:init", () => {
             this.pending--;
           }
         });
+      },
+
+      async check(q) {
+        // Store the latest text first so the solution is judged against it.
+        this.saveText(q);
+        await this.queue;
+        try {
+          const response = await fetch(q.revealUrl, { method: "POST" });
+          if (response.status === 409) {
+            window.location.reload();
+            return;
+          }
+          if (!response.ok) throw new Error(response.status);
+          q.solution = await response.json();
+        } catch {
+          this.status = this.texts["quiz.reveal_failed"];
+        }
       },
 
       submit() {

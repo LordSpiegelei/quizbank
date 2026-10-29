@@ -2,14 +2,14 @@ from dataclasses import dataclass
 
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
-from sqlmodel import Session, func, select
+from sqlmodel import Session
 from starlette.concurrency import run_in_threadpool
 from starlette.datastructures import UploadFile
 
 from app.attempts import open_attempt
 from app.db import SessionDep, get_or_404
 from app.importer import ImportResult, comes_back_on_restart, import_exam
-from app.models import Exam, Question
+from app.models import Exam
 from app.queries import finished_attempts
 from app.schemas import ExamFile, ExamFileError, parse_exam
 from app.templating import redirect, render
@@ -25,29 +25,30 @@ def _delete_confirm(request: Request, exam: Exam) -> str:
     return text
 
 
-@router.get("/exams/{exam_id}", response_class=HTMLResponse)
-def exam_detail(request: Request, session: SessionDep, exam_id: int):
-    exam = get_or_404(session, Exam, exam_id)
-    question_count, max_score = session.exec(
-        select(func.count(), func.sum(Question.points)).where(Question.exam_id == exam.id)
-    ).one()
-    topics = session.exec(
-        select(Question.topic)
-        .distinct()
-        .where(Question.exam_id == exam.id)
-        .order_by(func.casefold(Question.topic))
-    ).all()
+def exam_page(
+    request: Request, session: Session, exam: Exam, status_code: int = 200, **extra
+) -> HTMLResponse:
+    """The exam page with its start dialog; also rendered when starting an attempt fails."""
+    questions = exam.questions
     return render(
         request,
         "exam.html",
+        status_code=status_code,
         exam=exam,
-        question_count=question_count,
-        max_score=max_score or 0,
-        topics=topics,
+        question_count=len(questions),
+        max_score=sum(q.points for q in questions),
+        topics=sorted({q.topic for q in questions}, key=str.casefold),
+        tags=sorted({tag for q in questions for tag in q.tags}, key=str.casefold),
         open_attempt=open_attempt(session, exam.id),
         delete_confirm=_delete_confirm(request, exam),
         history=finished_attempts(session, exam.id),
+        **extra,
     )
+
+
+@router.get("/exams/{exam_id}", response_class=HTMLResponse)
+def exam_detail(request: Request, session: SessionDep, exam_id: int):
+    return exam_page(request, session, get_or_404(session, Exam, exam_id))
 
 
 @router.post("/exams/{exam_id}/delete")
