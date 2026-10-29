@@ -192,11 +192,11 @@ Eine Datei = eine Probeklausur. Schema wird als Pydantic-Modell implementiert un
 - [x] Export einer Antwort als Text (zum Einfügen in den Claude-Chat): „Für Claude kopieren" mit Aufgabe, Raster, Musterlösung und eigener Antwort
 
 ### Phase 4 – Teilen
-- [ ] README (Englisch) mit Screenshots, Quickstart, Format-Doku
-- [ ] Generierungs-Prompt als `docs/generate-exam-prompt.md`
-- [ ] Beispiel-Fragenbank mit **neutralen, selbst geschriebenen** Fragen in `examples/`
-- [ ] GitHub Actions: ruff + pytest; Docker-Image auf GHCR veröffentlichen
-- [ ] Lizenz: MIT
+- [x] README (Englisch) mit Screenshots (`docs/screenshots/`), Quickstart, Format-Doku
+- [x] Generierungs-Prompt als `docs/generate-exam-prompt.md` (EN + DE)
+- [x] Beispiel-Fragenbank mit **neutralen, selbst geschriebenen** Fragen in `examples/` (`sample-exam.json` DE, `web-basics.json` EN; Tests validieren alle Dateien)
+- [x] GitHub Actions: ruff + pytest; Docker-Image auf GHCR veröffentlichen (bei Tag `v*`)
+- [x] Lizenz: MIT
 
 ## 8. Projektstruktur (Ziel)
 

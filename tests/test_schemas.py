@@ -10,8 +10,9 @@ def errors_for(raw: str) -> list[str]:
     return exc_info.value.errors
 
 
-def test_example_file_is_valid() -> None:
-    exam_file = parse_exam(EXAMPLE.read_bytes())
+@pytest.mark.parametrize("path", sorted(EXAMPLE.parent.glob("*.json")), ids=lambda p: p.name)
+def test_example_files_are_valid(path) -> None:
+    exam_file = parse_exam(path.read_bytes())
     assert {q.type for q in exam_file.questions} == {"single", "multiple", "open"}
 
 
