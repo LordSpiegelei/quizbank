@@ -43,6 +43,7 @@ def get_session(request: Request) -> Iterator[Session]:
     with Session(request.app.state.engine) as session:
         # Lazy auto-submit: every request sees attempts whose deadline passed as finished.
         finalize_expired(session)
+        request.state.session = session  # reused by render() for the sidebar
         yield session
 
 

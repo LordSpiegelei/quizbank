@@ -1,35 +1,68 @@
 <!doctype html>
+{% from "_macros.html" import icon %}
+{#- Which course the page belongs to, for the sidebar highlight. -#}
+{% set nav_active = course.id if course is defined else exam.course_id if exam is defined else attempt.exam.course_id if attempt is defined %}
 <html lang="{{ request.app.state.settings.app_lang }}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light dark">
   <title>{% block title %}{{ t("app.name") }}{% endblock %}</title>
-  <link rel="stylesheet" href="{{ url_for('static', path='vendor/pico.min.css') }}">
+  <link rel="preload" href="{{ url_for('static', path='vendor/fonts/atkinson-hyperlegible-next.woff2') }}" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="{{ url_for('static', path='app.css') }}">
-  {# Apply the saved theme before the first paint (no flash); theme.js handles the switch. #}
+  {# Apply the saved theme before the first paint (no flash); shell.js handles the switch. #}
   <script>try { const t = localStorage.getItem("theme"); if (t) document.documentElement.dataset.theme = t; } catch {}</script>
-  <script defer src="{{ url_for('static', path='theme.js') }}"></script>
+  <script defer src="{{ url_for('static', path='shell.js') }}"></script>
   {% block head %}{% endblock %}
 </head>
 <body>
-  <header class="container">
-    <nav>
-      <ul><li><a href="{{ path('course_list') }}" class="brand">{{ t("app.name") }}</a></li></ul>
-      <ul>
-        <li><a href="{{ path('course_list') }}">{{ t("nav.courses") }}</a></li>
-        <li><a href="{{ path('import_form') }}">{{ t("nav.import") }}</a></li>
-        <li>
-          <button type="button" id="theme-toggle" class="theme-toggle"
-                  data-auto="{{ t('theme.auto') }}" data-light="{{ t('theme.light') }}"
-                  data-dark="{{ t('theme.dark') }}">{{ t("theme.auto") }}</button>
-        </li>
-      </ul>
-    </nav>
+{% block shell %}
+<div class="shell">
+  {# Mobile menu without JS: the checkbox opens the sidebar as a drawer. #}
+  <input type="checkbox" id="nav-open" class="nav-toggle">
+  <header class="topbar">
+    <a href="{{ path('course_list') }}" class="wordmark"><span class="bubble" aria-hidden="true"></span>{{ t("app.name") }}</a>
+    <label for="nav-open" class="btn-icon" title="{{ t('nav.menu') }}">{{ icon("menu") }}<span class="visually-hidden">{{ t("nav.menu") }}</span></label>
   </header>
-  <main class="container">
+
+  <nav class="sidebar" aria-label="{{ t('nav.main') }}">
+    <a href="{{ path('course_list') }}" class="wordmark"><span class="bubble" aria-hidden="true"></span>{{ t("app.name") }}</a>
+
+    <label class="search">
+      {{ icon("search") }}
+      <input type="search" id="nav-search" placeholder="{{ t('nav.find_course') }}" aria-label="{{ t('nav.find_course') }}">
+    </label>
+
+    <a href="{{ path('course_list') }}" class="nav-heading" {{ 'aria-current=page' if request.url.path == "/" }}>{{ t("nav.courses") }}</a>
+    {% set courses_in_nav = nav_courses() %}
+    {% if courses_in_nav %}
+    <ul class="nav-courses">
+      {% for nav_course, exam_count in courses_in_nav %}
+      <li>
+        <a href="{{ path('course_detail', course_id=nav_course.id) }}" {{ 'aria-current=page' if nav_course.id == nav_active }}>
+          <span class="label">{{ nav_course.label }}</span><span class="count">{{ exam_count }}</span>
+        </a>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="nav-empty">{{ t("nav.no_courses") }}</p>
+    {% endif %}
+
+    <div class="nav-footer">
+      <a href="{{ path('import_form') }}" class="nav-link" {{ 'aria-current=page' if request.url.path == "/import" }}>{{ icon("upload") }}{{ t("nav.import") }}</a>
+      <button type="button" id="theme-toggle" class="nav-link"
+              data-auto="{{ t('theme.auto') }}" data-light="{{ t('theme.light') }}"
+              data-dark="{{ t('theme.dark') }}">{{ t("theme.auto") }}</button>
+    </div>
+  </nav>
+  <label for="nav-open" class="nav-backdrop" aria-hidden="true"></label>
+
+  <main class="main">
     {% if error %}<p class="notice error" role="alert">{{ error }}</p>{% endif %}
     {% block content %}{% endblock %}
   </main>
+</div>
+{% endblock %}
 </body>
 </html>

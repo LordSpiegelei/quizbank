@@ -1,4 +1,4 @@
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -6,10 +6,12 @@ from typing import Any
 from fastapi import Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
+from sqlmodel import Session
 
 from app.learning import FLAGS
 from app.locales import Translator
 from app.markdown import render_markdown, render_markdown_inline
+from app.queries import nav_courses
 
 TEMPLATE_DIR = Path(__file__).resolve().parent / "templates"
 
@@ -20,8 +22,8 @@ def make_templates(t: Translator, url_path_for: Callable[..., Any]) -> Jinja2Tem
     datetime_format = t("format.datetime")
 
     def format_number(value: float | None) -> str:
-        """30.0 -> "30", 7.5 -> "7,5" with the locale's decimal separator."""
-        return "" if value is None else f"{value:g}".replace(".", decimal_sep)
+        """30.0 -> "30", 7.5 -> "7,5", 6.3333 -> "6,33" with the locale's decimal separator."""
+        return "" if value is None else f"{round(value, 2):g}".replace(".", decimal_sep)
 
     def format_datetime(value: datetime | None) -> str:
         return "" if value is None else value.astimezone().strftime(datetime_format)
@@ -63,7 +65,18 @@ def redirect_back(request: Request, next_url: str, fallback: str, **params: Any)
     return redirect(request, fallback, **params)
 
 
+def _nav_courses(request: Request) -> Sequence[Any]:
+    """The sidebar's course list, on the request's session (routes without one open their own)."""
+    session = getattr(request.state, "session", None)
+    if session is not None:
+        return nav_courses(session)
+    with Session(request.app.state.engine) as session:
+        return nav_courses(session)
+
+
 def render(request: Request, name: str, status_code: int = 200, **context: Any) -> HTMLResponse:
+    # Called by base.html inside its shell block only, so pages without the sidebar skip it.
+    context.setdefault("nav_courses", lambda: _nav_courses(request))
     return request.app.state.templates.TemplateResponse(
         request, name, context, status_code=status_code
     )

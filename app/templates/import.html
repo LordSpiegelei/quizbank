@@ -1,22 +1,24 @@
 {% extends "base.html" %}
+{% from "_macros.html" import icon, page_head %}
 {% block title %}{{ t("import.title") }} – {{ super() }}{% endblock %}
 {% block content %}
-<h1>{{ t("import.title") }}</h1>
-<p>{{ t("import.hint") }}</p>
+{{ page_head(t("import.title"), lead=t("import.hint")) }}
 
-<form method="post" action="{{ path('import_upload') }}" enctype="multipart/form-data">
-  <label>{{ t("import.files") }}
+<form method="post" action="{{ path('import_upload') }}" enctype="multipart/form-data" class="settings">
+  <label class="dropzone">
+    {{ icon("upload") }}
+    <span>{{ t("import.files") }}</span>
     <input type="file" name="files" accept=".json,application/json" multiple required>
   </label>
   <button type="submit">{{ t("import.submit") }}</button>
 </form>
 
 {% if outcomes %}
-<section>
-  <h2>{{ t("import.results") }}</h2>
+<h2>{{ t("import.results") }}</h2>
+<ul class="import-results">
   {% for o in outcomes %}
-  <article class="{{ 'error' if o.errors else 'success' }}">
-    <header><code>{{ o.filename }}</code></header>
+  <li class="notice {{ 'error' if o.errors else 'success' }}">
+    <code>{{ o.filename }}</code>
     {% if o.errors %}
       <p>{{ t("import.failed") }}</p>
       <ul class="errors">{% for line in o.errors %}<li><code>{{ line }}</code></li>{% endfor %}</ul>
@@ -28,11 +30,11 @@
         {% else %}
           {{ t("import.unchanged", course=o.exam_file.course, title=o.exam_file.title) }}
         {% endif %}
-        <a href="{{ path('exam_detail', exam_id=r.exam_id) }}">→</a>
+        <a href="{{ path('exam_detail', exam_id=r.exam_id) }}">{{ t("import.open") }}</a>
       </p>
     {% endif %}
-  </article>
+  </li>
   {% endfor %}
-</section>
+</ul>
 {% endif %}
 {% endblock %}

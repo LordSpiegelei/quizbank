@@ -58,8 +58,8 @@
   {% if open_attempt %}
     <p>{{ t("exam.open_attempt", started=open_attempt.started_at | dt) }}</p>
     <div class="actions">
-      <a role="button" href="{{ path('attempt_page', attempt_id=open_attempt.id) }}">{{ t("exam.resume") }}</a>
-      {{ confirm_form(path('restart_attempt', attempt_id=open_attempt.id), t("exam.restart"), t("exam.restart_confirm"), "secondary outline") }}
+      <a class="btn" href="{{ path('attempt_page', attempt_id=open_attempt.id) }}">{{ t("exam.resume") }}</a>
+      {{ confirm_form(path('restart_attempt', attempt_id=open_attempt.id), t("exam.restart"), t("exam.restart_confirm"), "btn-quiet") }}
     </div>
   {% else %}
   <div class="grid">
@@ -107,7 +107,7 @@
   <summary>{{ t("questions.title", n=question_count) }}</summary>
   <p><small>{{ t("questions.hint") }}</small></p>
   <div class="overflow-auto">
-  <table class="striped">
+  <table>
     <thead><tr><th class="num">#</th><th>{{ t("quiz.question") }}</th><th>{{ t("pool.topic") }}</th><th></th></tr></thead>
     <tbody>
       {% for q in questions %}
@@ -127,7 +127,7 @@
 <details>
   <summary>{{ t("pool.title", n=pool | length) }}</summary>
   <div class="overflow-auto">
-  <table class="striped">
+  <table>
     <thead>
       <tr><th>{{ t("quiz.question") }}</th><th>{{ t("pool.topic") }}</th><th>{{ t("pool.streak") }}</th><th></th></tr>
     </thead>
@@ -139,7 +139,7 @@
         <td class="num">{{ q.pool_streak }}/{{ pool_exit_streak }}</td>
         <td>
           <form method="post" action="{{ path('remove_from_pool_form', question_id=q.id) }}">
-            <button type="submit" class="secondary outline">{{ t("pool.remove") }}</button>
+            <button type="submit" class="btn-quiet">{{ t("pool.remove") }}</button>
           </form>
         </td>
       </tr>
@@ -166,7 +166,7 @@
 <h2>{{ t("history.title") }}</h2>
 {% if history %}
 <div class="overflow-auto">
-<table class="striped">
+<table>
   <thead>
     <tr>
       <th>{{ t("history.date") }}</th>
@@ -195,8 +195,8 @@
 
 <hr>
 <div class="actions">
-  <a role="button" class="secondary outline" href="{{ path('export_exam_file', exam_id=exam.id) }}" download>{{ t("exam.export") }}</a>
-  {{ confirm_form(path('reset_exam_learning', exam_id=exam.id), t("learning.reset"), t("learning.reset_confirm"), "secondary outline") }}
+  <a class="btn-quiet" href="{{ path('export_exam_file', exam_id=exam.id) }}" download>{{ t("exam.export") }}</a>
+  {{ confirm_form(path('reset_exam_learning', exam_id=exam.id), t("learning.reset"), t("learning.reset_confirm"), "btn-quiet") }}
   {% if history %}{{ confirm_form(path('delete_exam_history', exam_id=exam.id), t("history.delete_all"), t("history.delete_all_confirm")) }}{% endif %}
 </div>
 {{ confirm_form(path('delete_exam', exam_id=exam.id), t("exam.delete"), delete_confirm) }}

@@ -1,19 +1,12 @@
 {% extends "base.html" %}
-{% from "_macros.html" import attempt_result, confirm_form, pass_mark, time_limit %}
+{% from "_macros.html" import attempt_result, confirm_form, page_head, pass_mark, time_limit %}
 {% block title %}{{ course.label }} – {{ super() }}{% endblock %}
 {% block content %}
-<nav aria-label="breadcrumb">
-  <ul>
-    <li><a href="{{ path('course_list') }}">{{ t("nav.courses") }}</a></li>
-    <li>{{ course.label }}</li>
-  </ul>
-</nav>
-<h1>{{ course.label }}</h1>
+{{ page_head(course.label, [(t("nav.courses"), path("course_list")), (course.label, none)]) }}
 
-<h2>{{ t("course.exams") }}</h2>
 {% if exams %}
 <div class="overflow-auto">
-<table class="striped">
+<table>
   <thead>
     <tr>
       <th>{{ t("course.exams") }}</th>
@@ -26,7 +19,7 @@
   <tbody>
     {% for exam in exams %}
     <tr>
-      <td><a href="{{ path('exam_detail', exam_id=exam.id) }}">{{ exam.title }}</a></td>
+      <td><a class="row-title" href="{{ path('exam_detail', exam_id=exam.id) }}">{{ exam.title }}</a></td>
       <td class="num">{{ question_counts.get(exam.id, 0) }}</td>
       <td class="num">{{ time_limit(exam) }}</td>
       <td class="num">{{ pass_mark(exam) }}</td>
@@ -37,30 +30,32 @@
 </table>
 </div>
 {% else %}
-<p>{{ t("course.no_exams") }}</p>
+<p class="muted">{{ t("course.no_exams") }}</p>
 {% endif %}
 
-<details {{ "open" if error or saved }}>
-  <summary>{{ t("course.settings") }}</summary>
-  {% if saved %}<p class="notice success">{{ t("course.saved") }}</p>{% endif %}
-  <form method="post" action="{{ path('update_course', course_id=course.id) }}">
-    <label>{{ t("course.name") }}
-      <input name="name" value="{{ course.label }}" required>
-      {% if course.display_name %}<small>{{ t("course.import_name", name=course.name) }}</small>{% endif %}
-    </label>
-    <div class="grid">
-      <label>{{ t("course.default_time_limit") }}
-        <input name="default_time_limit" type="number" min="1" step="1"
-               value="{{ course.default_time_limit | num }}">
+<section class="danger-zone">
+  <details {{ "open" if error or saved }}>
+    <summary>{{ t("course.settings") }}</summary>
+    {% if saved %}<p class="notice success" role="status">{{ t("course.saved") }}</p>{% endif %}
+    <form method="post" action="{{ path('update_course', course_id=course.id) }}" class="settings">
+      <label>{{ t("course.name") }}
+        <input name="name" value="{{ course.label }}" required>
+        {% if course.display_name %}<small>{{ t("course.import_name", name=course.name) }}</small>{% endif %}
       </label>
-      <label>{{ t("course.default_pass_mark") }}
-        <input name="default_pass_mark" inputmode="decimal"
-               value="{{ course.default_pass_mark | num }}">
-      </label>
-    </div>
-    <small>{{ t("course.defaults_hint") }}</small>
-    <button type="submit">{{ t("common.save") }}</button>
-  </form>
-  {{ confirm_form(path('delete_course', course_id=course.id), t("course.delete"), delete_confirm) }}
-</details>
+      <div class="grid">
+        <label>{{ t("course.default_time_limit") }}
+          <input name="default_time_limit" type="number" min="1" step="1"
+                 value="{{ course.default_time_limit | num }}">
+        </label>
+        <label>{{ t("course.default_pass_mark") }}
+          <input name="default_pass_mark" inputmode="decimal"
+                 value="{{ course.default_pass_mark | num }}">
+        </label>
+      </div>
+      <p><small class="muted">{{ t("course.defaults_hint") }}</small></p>
+      <button type="submit">{{ t("common.save") }}</button>
+    </form>
+    {{ confirm_form(path('delete_course', course_id=course.id), t("course.delete"), delete_confirm) }}
+  </details>
+</section>
 {% endblock %}

@@ -1,3 +1,25 @@
+{# Icon from the local Lucide sprite; decorative, so hidden from screen readers. #}
+{% macro icon(name) -%}
+  <svg class="icon" aria-hidden="true"><use href="{{ path('static', path='icons.svg') }}#{{ name }}"></use></svg>
+{%- endmacro %}
+
+{# Breadcrumb (list of (label, url); the last one is the current page), title, optional lead. #}
+{% macro page_head(title, crumbs=[], lead=none) -%}
+  <header class="page-head">
+    {% if crumbs %}
+    <nav aria-label="breadcrumb">
+      <ul>
+        {% for label, url in crumbs %}
+        <li>{% if url %}<a href="{{ url }}">{{ label }}</a>{% else %}{{ label }}{% endif %}</li>
+        {% endfor %}
+      </ul>
+    </nav>
+    {% endif %}
+    <h1>{{ title }}</h1>
+    {% if lead %}<p class="lead">{{ lead }}</p>{% endif %}
+  </header>
+{%- endmacro %}
+
 {% macro attempt_result(attempt) -%}
   {% if attempt %}
     {{ attempt.score | num }} / {{ attempt.max_score | num }}
@@ -28,7 +50,7 @@
   {{ _with_default(exam.pass_mark, exam.effective_pass_mark, t("common.points", n=exam.effective_pass_mark | num)) }}
 {%- endmacro %}
 
-{% macro confirm_form(action, label, confirm_text, button_class="secondary outline danger") -%}
+{% macro confirm_form(action, label, confirm_text, button_class="btn-danger") -%}
   <form method="post" action="{{ action }}" data-confirm="{{ confirm_text }}"
         onsubmit="return confirm(this.dataset.confirm)">
     <button type="submit" class="{{ button_class }}">{{ label }}</button>
