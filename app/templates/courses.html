@@ -29,26 +29,26 @@
 </form>
 
 {% if courses %}
-<div class="overflow-auto">
-<table>
+{# Column names, shared by the header and the stacked mobile rows (data-label) #}
+{% set col_exams, col_last_practiced = t("course.exams"), t("courses.last_practiced") %}
+<table class="stack">
   <thead>
     <tr>
       <th>{{ t("course.name") }}</th>
-      <th class="num">{{ t("course.exams") }}</th>
-      <th>{{ t("courses.last_practiced") }}</th>
+      <th class="num">{{ col_exams }}</th>
+      <th>{{ col_last_practiced }}</th>
     </tr>
   </thead>
   <tbody>
     {% for row in courses %}
     <tr>
       <td><a class="row-title" href="{{ path('course_detail', course_id=row.course.id) }}">{{ row.course.label }}</a></td>
-      <td class="num">{{ row.exam_count }}</td>
-      <td class="muted">{{ row.last_practiced | dt if row.last_practiced else t("courses.never") }}</td>
+      <td class="num" data-label="{{ col_exams }}">{{ row.exam_count }}</td>
+      <td class="muted" data-label="{{ col_last_practiced }}">{{ row.last_practiced | dt if row.last_practiced else t("courses.never") }}</td>
     </tr>
     {% endfor %}
   </tbody>
 </table>
-</div>
 {% elif q %}
 <p class="muted">{{ t("courses.no_match", q=q) }}</p>
 {% else %}

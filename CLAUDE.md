@@ -44,8 +44,8 @@ Die App soll später **öffentlich auf GitHub geteilt** werden. Andere bringen i
 | Backend | Python 3.12+, **FastAPI** | einfach, gute Doku, automatische API-Doku unter `/docs` |
 | Datenbank | **SQLite** via **SQLModel** | eine Datei, kein extra Service |
 | Frontend | **Jinja2-Templates** für normale Seiten, **Alpine.js** für den Quiz-Ablauf (eine Seite, Fragen als JSON, Antworten per `fetch` gespeichert) | kein Build-Schritt; Zustand (Timer, Navigation, Tastatur, Feedback) an einem Ort; Fortsetzen abgebrochener Versuche ohne Zusatzaufwand. Kein HTMX. |
-| Styling | **Pico.css v2**, lokal in `app/static/vendor/` | sauberes Design, Hell/Dunkel eingebaut, offline-fähig |
-| Diagramme | **Chart.js** (lokal) bzw. CSS-Balken | einfache Statistik ohne Build |
+| Styling | **Eigenes CSS-Designsystem** in `app/static/app.css` (Tokens mit `light-dark()`, Hell/Dunkel über `data-theme`), Schriften **Atkinson Hyperlegible Next/Mono** lokal in `app/static/vendor/fonts/`, Lucide-Symbole als Sprite `app/static/icons.svg` | eigene Identität („Antwortbogen“), keine Konflikte mit Framework-Defaults, offline-fähig |
+| Diagramme | CSS-Balken und SVG-Linie aus Jinja-Macros | einfache Statistik ohne Build und ohne Bibliothek |
 | Inhalte | **Markdown** (markdown-it-py + Sanitizing via nh3) in Frage, Szenario, Optionen, Erklärungen; **KaTeX** (lokal) für `$…$`/`$$…$$` | generisch für alle Fächer (Code, Tabellen, Formeln) |
 | Validierung | Pydantic-Modelle für das Import-JSON | klare Fehlermeldungen beim Import |
 | Migrationen | **Alembic** ab Start | Updates brechen keine Nutzer-DBs |
@@ -231,7 +231,7 @@ quizbank/
 │   │   ├── exams.py
 │   │   └── attempts.py
 │   ├── templates/         # Jinja2
-│   └── static/            # app.css, quiz.js (Alpine), vendor/ (Pico, Alpine, Chart.js, KaTeX)
+│   └── static/            # app.css, icons.svg, shell.js (Theme, Menüs, Formular-Helfer), quiz.js (Alpine), vendor/ (Alpine, fonts/)
 ├── schema/exam.schema.json
 ├── examples/sample-exam.json
 ├── docs/generate-exam-prompt.md
@@ -284,7 +284,7 @@ quizbank/
 - [x] Timer → Server-Deadline, läuft weiter, lazy Auto-Abgabe
 - [x] „Falsche wiederholen" → persistenter **Falsch-Pool pro Exam** (raus nach 2× richtig in Folge) statt „letzte N Versuche"
 - [x] Selbstbewertung `open` → pro Raster-Kriterium (`rubric_scores`)
-- [ ] Redesign der UI (später, nach den Funktionen): u. a. Stern-/Deaktivieren-Buttons klarer unterscheidbar machen („Deaktivieren" vs. „Deaktiviert" zu ähnlich)
+- [x] Redesign der UI → **„Antwortbogen“**: eigenes Designsystem statt Pico, linke Seitenleiste, Quiz im Fokusmodus mit Antwortbogen, Fragenaktionen im „⋯“-Menü (Aktionen statt Zustände), eine Fragenliste mit Filtern statt eigener Pool-Tabelle
 
 ## graphify
 

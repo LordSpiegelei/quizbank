@@ -5,30 +5,31 @@
 {{ page_head(course.label, [(t("nav.courses"), path("course_list")), (course.label, none)]) }}
 
 {% if exams %}
-<div class="overflow-auto">
-<table>
+{# Column names, shared by the header and the stacked mobile rows (data-label) #}
+{% set col_questions, col_time_limit = t("course.questions"), t("course.time_limit") %}
+{% set col_pass_mark, col_last_result = t("course.pass_mark"), t("course.last_result") %}
+<table class="stack">
   <thead>
     <tr>
       <th>{{ t("course.exams") }}</th>
-      <th class="num">{{ t("course.questions") }}</th>
-      <th class="num">{{ t("course.time_limit") }}</th>
-      <th class="num">{{ t("course.pass_mark") }}</th>
-      <th>{{ t("course.last_result") }}</th>
+      <th class="num">{{ col_questions }}</th>
+      <th class="num">{{ col_time_limit }}</th>
+      <th class="num">{{ col_pass_mark }}</th>
+      <th>{{ col_last_result }}</th>
     </tr>
   </thead>
   <tbody>
     {% for exam in exams %}
     <tr>
       <td><a class="row-title" href="{{ path('exam_detail', exam_id=exam.id) }}">{{ exam.title }}</a></td>
-      <td class="num">{{ question_counts.get(exam.id, 0) }}</td>
-      <td class="num">{{ time_limit(exam) }}</td>
-      <td class="num">{{ pass_mark(exam) }}</td>
-      <td>{{ attempt_result(last_attempts.get(exam.id)) }}</td>
+      <td class="num" data-label="{{ col_questions }}">{{ question_counts.get(exam.id, 0) }}</td>
+      <td class="num" data-label="{{ col_time_limit }}">{{ time_limit(exam) }}</td>
+      <td class="num" data-label="{{ col_pass_mark }}">{{ pass_mark(exam) }}</td>
+      <td data-label="{{ col_last_result }}">{{ attempt_result(last_attempts.get(exam.id)) }}</td>
     </tr>
     {% endfor %}
   </tbody>
 </table>
-</div>
 {% else %}
 <p class="muted">{{ t("course.no_exams") }}</p>
 {% endif %}

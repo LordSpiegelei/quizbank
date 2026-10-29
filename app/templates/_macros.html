@@ -126,10 +126,12 @@
 
 {# Score percentages over time; each point links to its review and has a tooltip. #}
 {% macro line_chart(chart, label) -%}
-  <svg class="line-chart" viewBox="0 0 {{ chart.width }} {{ chart.view_height }}" role="img" aria-label="{{ label }}">
+  {# Labels are HTML on top of the SVG, so they keep the page's text size at any chart width. #}
+  <figure class="line-chart" style="--inset: {{ '%.2f' % chart.inset }}%">
+  <div class="plot">
+  <svg viewBox="0 0 {{ chart.width }} {{ chart.height }}" role="img" aria-label="{{ label }}">
     {% for tick, y in chart.ticks %}
     <line class="grid-line" x1="{{ chart.points[0].x }}" x2="{{ chart.points[-1].x }}" y1="{{ y }}" y2="{{ y }}"></line>
-    <text class="axis-label" x="{{ chart.points[0].x }}" y="{{ y - 3 }}">{{ tick }} %</text>
     {% endfor %}
     <polyline class="series" points="{{ chart.polyline }}"></polyline>
     {% for p in chart.points %}
@@ -140,7 +142,13 @@
       <circle class="dot" cx="{{ p.x }}" cy="{{ p.y }}" r="4"></circle>
     </a>
     {% endfor %}
-    <text class="axis-label" x="{{ chart.points[0].x }}" y="{{ chart.view_height - 4 }}">{{ chart.points[0].attempt.finished_at | dt }}</text>
-    <text class="axis-label end" x="{{ chart.points[-1].x }}" y="{{ chart.view_height - 4 }}">{{ chart.points[-1].attempt.finished_at | dt }}</text>
   </svg>
+  {% for tick, y in chart.ticks %}
+  <span class="tick" aria-hidden="true" style="top: {{ '%.2f' % (100 * y / chart.height) }}%">{{ tick }} %</span>
+  {% endfor %}
+  </div>
+  <figcaption class="dates">
+    <span>{{ chart.points[0].attempt.finished_at | dt }}</span><span>{{ chart.points[-1].attempt.finished_at | dt }}</span>
+  </figcaption>
+  </figure>
 {%- endmacro %}
