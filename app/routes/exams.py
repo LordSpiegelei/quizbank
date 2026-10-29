@@ -1,7 +1,8 @@
 from dataclasses import dataclass
+from typing import Annotated, Literal, get_args
 from urllib.parse import quote
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Query, Request
 from fastapi.responses import HTMLResponse, Response
 from sqlmodel import Session
 from starlette.concurrency import run_in_threadpool
@@ -11,6 +12,7 @@ from app.attempts import askable, open_attempt
 from app.db import SessionDep, get_or_404
 from app.exporter import export_exam
 from app.importer import ImportResult, comes_back_on_restart, import_exam
+from app.learning import QuestionFilter, filter_counts
 from app.models import Exam
 from app.queries import finished_attempts, topic_counts
 from app.schemas import ExamFile, ExamFileError, parse_exam
@@ -30,7 +32,13 @@ def _delete_confirm(request: Request, exam: Exam) -> str:
 
 
 def exam_page(
-    request: Request, session: Session, exam: Exam, status_code: int = 200, **extra
+    request: Request,
+    session: Session,
+    exam: Exam,
+    status_code: int = 200,
+    tab: str | None = None,
+    question_filter: str = "all",
+    **extra,
 ) -> HTMLResponse:
     """The exam page with its start dialog; also rendered when starting an attempt fails."""
     questions = exam.questions
@@ -45,8 +53,7 @@ def exam_page(
         topics=sorted({q.topic for q in questions}, key=str.casefold),
         tags=sorted({tag for q in questions for tag in q.tags}, key=str.casefold),
         questions=questions,
-        pool=[q for q in questions if q.in_wrong_pool],
-        starred_count=sum(q.starred for q in questions),
+        filter_counts=filter_counts(questions),
         pool_retryable=sum(askable(q, "retry_wrong") for q in questions),
         pool_exit_streak=POOL_EXIT_STREAK,
         open_attempt=open_attempt(session, exam.id),
@@ -54,13 +61,28 @@ def exam_page(
         history=history,
         topic_stats=topic_stats(topic_counts(session, exam.id)),
         chart=history_chart(history),
+        tabs=get_args(ExamTab),
+        tab=tab,
+        question_filter=question_filter,
         **extra,
     )
 
 
+ExamTab = Literal["history", "stats", "questions"]
+
+
 @router.get("/exams/{exam_id}", response_class=HTMLResponse)
-def exam_detail(request: Request, session: SessionDep, exam_id: int):
-    return exam_page(request, session, get_or_404(session, Exam, exam_id))
+def exam_detail(
+    request: Request,
+    session: SessionDep,
+    exam_id: int,
+    tab: ExamTab | None = None,
+    question_filter: Annotated[QuestionFilter, Query(alias="filter")] = "all",
+):
+    """`tab` and `filter` restore the view a question action was taken from (shell.js keeps
+    them in the URL)."""
+    exam = get_or_404(session, Exam, exam_id)
+    return exam_page(request, session, exam, tab=tab, question_filter=question_filter)
 
 
 @router.get("/exams/{exam_id}/export")

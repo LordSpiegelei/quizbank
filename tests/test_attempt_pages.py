@@ -198,15 +198,15 @@ def test_start_form_fields(client) -> None:
 def test_wrong_pool_retry_and_removal(client) -> None:
     exam_id = _setup(client, single(question="Erste?"), single(id="q2", question="Zweite?"))
     page = client.get(f"/exams/{exam_id}").text
-    assert "Falsch-Pool (" not in page  # no pool list yet
+    assert 'Im Falsch-Pool <span class="count">0</span>' in page  # empty pool
     assert "<fieldset disabled>" in page  # nothing to retry yet
 
     # An exam attempt with both questions unanswered fills the pool.
     attempt_id = _start(client, exam_id)
     client.post(f"/attempts/{attempt_id}/finish")
     page = client.get(f"/exams/{exam_id}").text
-    assert "Falsch-Pool (2)" in page
-    assert "0/2" in page
+    assert 'Im Falsch-Pool <span class="count">2</span>' in page
+    assert 'title="Im Falsch-Pool: 0 von 2 richtig in Folge"' in page
 
     retry_id = _start(client, exam_id, mode="retry_wrong", feedback="end", count="1")
     with db(client) as session:
@@ -214,9 +214,15 @@ def test_wrong_pool_retry_and_removal(client) -> None:
         assert (retry.mode, len(retry.answers)) == ("retry_wrong", 1)
         question_id = retry.answers[0].question_id
 
-    response = client.post(f"/questions/{question_id}/pool/remove", follow_redirects=False)
-    assert response.headers["location"] == f"/exams/{exam_id}"
-    assert "Falsch-Pool (1)" in client.get(f"/exams/{exam_id}").text
+    back = f"/exams/{exam_id}?tab=questions&filter=pool#question-{question_id}"
+    response = client.post(
+        f"/questions/{question_id}/pool/remove", data={"next": back}, follow_redirects=False
+    )
+    assert response.headers["location"] == back
+    page = client.get(back.split("#")[0]).text
+    assert 'Im Falsch-Pool <span class="count">1</span>' in page
+    assert 'id="filter-pool" value="pool" data-url-param="filter" checked' in page
+    assert 'id="tab-questions" value="questions" data-url-param="tab" checked' in page
 
 
 def test_star_and_disable_toggles(client) -> None:
@@ -238,7 +244,8 @@ def test_star_and_disable_toggles(client) -> None:
     )
     assert response.headers["location"] == f"/exams/{exam_id}"
     page = client.get(f"/exams/{exam_id}").text
-    assert "★ Markiert" in page
+    assert 'class="state-starred" title="Markiert"' in page
+    assert "Markierung entfernen" in page  # the menu now offers the opposite action
     assert "Nur markierte Fragen (1)" in page
 
     # The runner sets flags through the JSON API.
@@ -250,7 +257,7 @@ def test_star_and_disable_toggles(client) -> None:
     assert client.post(f"/api/questions/{q2}/flags/foo", json={"value": True}).status_code == 422
 
     client.post(f"/attempts/{attempt_id}/finish")
-    assert "★ Markiert" in client.get(f"/attempts/{attempt_id}/review").text
+    assert "Markierung entfernen" in client.get(f"/attempts/{attempt_id}/review").text
 
 
 def test_resets(client) -> None:
@@ -275,7 +282,7 @@ def test_resets(client) -> None:
 
 def test_exam_page_statistics(client) -> None:
     exam_id = _setup(client, single(topic="Algebra"), single(id="q2", topic="Geometrie"))
-    assert "Statistik" not in client.get(f"/exams/{exam_id}").text
+    assert "Trefferquote pro Thema" not in client.get(f"/exams/{exam_id}").text
 
     for selected in ([1], [0]):
         attempt_id = _start(client, exam_id)

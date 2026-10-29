@@ -1,6 +1,6 @@
 {# Icon from the local Lucide sprite; decorative, so hidden from screen readers. #}
 {% macro icon(name) -%}
-  <svg class="icon" aria-hidden="true"><use href="{{ path('static', path='icons.svg') }}#{{ name }}"></use></svg>
+  <svg class="icon" aria-hidden="true"><use href="{{ icons_url }}#{{ name }}"></use></svg>
 {%- endmacro %}
 
 {# Breadcrumb (list of (label, url); the last one is the current page), title, optional lead. #}
@@ -58,20 +58,46 @@
 {%- endmacro %}
 
 
-{# Star and disable toggles for a live question; `next` is where the form returns to. #}
-{% macro flag_forms(question, next) -%}
-  <span class="flags">
-    {% for flag in flags %}
-    {% set on = question[flag] %}
-    <form method="post" action="{{ path('set_flag_form', question_id=question.id, flag=flag) }}">
-      <input type="hidden" name="value" value="{{ 'false' if on else 'true' }}">
-      <input type="hidden" name="next" value="{{ next }}">
-      <button type="submit" class="flag {{ 'on' if on }}" aria-pressed="{{ 'true' if on else 'false' }}">
-        {{ t("flag." ~ flag ~ (".on" if on else ".off")) }}
-      </button>
-    </form>
+{# A question's learning state as small symbols: star, skipped, wrong-pool streak. #}
+{% macro question_state(question, exit_streak) -%}
+  <span class="qstate">
+    {% for flag in flags if question[flag] %}
+    <span class="state-{{ flag }}" title="{{ t('flag.' ~ flag ~ '.state') }}">{{ icon(flag_icons[flag]) }}<span class="visually-hidden">{{ t("flag." ~ flag ~ ".state") }}</span></span>
     {% endfor %}
+    {% if question.in_wrong_pool %}
+    {% set label = t("pool.state", streak=question.pool_streak, of=exit_streak) %}
+    <span class="streak" title="{{ label }}"><span class="visually-hidden">{{ label }}</span>
+      {%- for i in range(exit_streak) %}<i class="{{ 'hit' if i < question.pool_streak }}"></i>{% endfor -%}
+    </span>
+    {% endif %}
   </span>
+{%- endmacro %}
+
+{# The "⋯" menu of a live question: actions named by what they do, not by the state.
+   Plain forms, so it works without JS; shell.js closes it on outside click and Escape. #}
+{% macro _menu_action(action, label, icon_name, next, fields={}) -%}
+  <form method="post" action="{{ action }}">
+    {% for name, value in fields.items() %}<input type="hidden" name="{{ name }}" value="{{ value }}">{% endfor %}
+    <input type="hidden" name="next" value="{{ next }}">
+    <button type="submit">{{ icon(icon_name) }}{{ label }}</button>
+  </form>
+{%- endmacro %}
+
+{% macro question_menu(question, next) -%}
+  <details class="menu">
+    <summary class="btn-icon" title="{{ t('questions.menu') }}">{{ icon("ellipsis") }}<span class="visually-hidden">{{ t("questions.menu") }}</span></summary>
+    <div class="menu-list">
+      {% for flag in flags %}
+      {% set on = question[flag] %}
+      {{ _menu_action(path('set_flag_form', question_id=question.id, flag=flag),
+                      t("flag." ~ flag ~ (".unset" if on else ".set")), flag_icons[flag], next,
+                      {"value": "false" if on else "true"}) }}
+      {% endfor %}
+      {% if question.in_wrong_pool %}
+      {{ _menu_action(path('remove_from_pool_form', question_id=question.id), t("pool.remove"), "x", next) }}
+      {% endif %}
+    </div>
+  </details>
 {%- endmacro %}
 
 

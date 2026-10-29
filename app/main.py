@@ -40,8 +40,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app = FastAPI(title="quizbank", lifespan=lifespan)
     app.state.settings = settings
     app.state.t = get_translator(settings.app_lang)
-    app.state.templates = make_templates(app.state.t, app.url_path_for)
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+    app.state.templates = make_templates(app.state.t, app.url_path_for)  # after the static mount
     app.include_router(courses.router)
     app.include_router(exams.router)
     app.include_router(attempts.router)
