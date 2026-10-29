@@ -118,6 +118,12 @@ TEXTS: dict[str, str] = {
     "quiz.finish_confirm": "Klausur jetzt abgeben?",
     "quiz.finish_confirm_unanswered": "Noch {n} Fragen unbeantwortet. Trotzdem abgeben?",
     "quiz.no_js": "Für die Klausur wird JavaScript benötigt.",
+    "quiz.keys_options": "Tastatur: 1–{n} oder A–{letter} wählen",
+    "quiz.keys": "Enter prüfen/weiter · ←/→ blättern · S markieren",
+    # Theme switch
+    "theme.auto": "◐ Automatisch",
+    "theme.light": "☀ Hell",
+    "theme.dark": "☾ Dunkel",
     # Review
     "review.title": "Auswertung",
     "review.finished_at": "Abgegeben",

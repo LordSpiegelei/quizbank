@@ -83,10 +83,12 @@
   <div class="quiz-nav">
     <button class="secondary" @click="go(index - 1)" :disabled="index === 0">{{ t("quiz.prev") }}</button>
     <small class="save-status" x-text="status" aria-live="polite"></small>
-    <button x-show="!canAdvance" @click="check(current)">{{ t("quiz.check") }}</button>
-    <button x-show="canAdvance && !isLast" @click="go(index + 1)">{{ t("quiz.next") }}</button>
-    <button x-show="canAdvance && isLast" @click="submit()">{{ t("quiz.finish") }}</button>
+    <button x-show="!canAdvance" @click="primary()">{{ t("quiz.check") }}</button>
+    <button x-show="canAdvance && !isLast" @click="primary()">{{ t("quiz.next") }}</button>
+    <button x-show="canAdvance && isLast" @click="primary()">{{ t("quiz.finish") }}</button>
   </div>
+
+  <p class="keys"><small x-text="keyHint"></small></p>
 
   <details>
     <summary>{{ t("quiz.overview") }}</summary>

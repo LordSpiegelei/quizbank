@@ -180,8 +180,8 @@ Eine Datei = eine Probeklausur. Schema wird als Pydantic-Modell implementiert un
 - [x] Fragen **markieren** (Stern) und **deaktivieren** (im Quiz, in der Auswertung und in der Fragenliste der Exam-Seite); Übung: „nur markierte" (deaktivierte fallen immer weg); „Lernstand zurücksetzen" pro Exam und global (Kursliste), „Verlauf löschen" pro Exam
 - [x] Fragen und Antwortoptionen zufällig mischen
 - [x] **Export** eines Quiz zurück nach JSON (Button auf der Exam-Seite; `course` = Import-Name, eigene statt Kurs-Defaults)
-- [ ] **Tastatursteuerung** (1–5 bzw. A–E zum Auswählen, Enter = weiter, ←/→ navigieren, S = markieren)
-- [ ] Hell/Dunkel-Modus
+- [x] **Tastatursteuerung** (1–9 bzw. A–J je nach Optionsanzahl zum Auswählen, Enter = Hauptbutton (Prüfen/Weiter/Abgeben), ←/→ navigieren, S = markieren; Hinweis passt sich der Frage an)
+- [x] Hell/Dunkel-Modus (Umschalter in der Navigation: automatisch → hell → dunkel, im Browser gespeichert)
 
 ### Phase 2b – Klausursimulation & Statistik (eigene Ergänzung)
 - [ ] Klausurmodus: Countdown mit Auto-Abgabe, keine Lösungen bis zur Abgabe, „bestanden/nicht bestanden“ anhand `pass_mark`
