@@ -133,7 +133,7 @@ uv run ruff check . && uv run ruff format --check .
 uv run python -m app.schemas              # regenerate schema/exam.schema.json
 ```
 
-The stack is FastAPI, SQLModel/SQLite with Alembic migrations, Jinja2 templates, Alpine.js for the quiz page and Pico.css. There is no build step, and all front-end libraries are vendored.
+The stack is FastAPI, SQLModel/SQLite with Alembic migrations, Jinja2 templates, Alpine.js for the quiz page and a small hand-written CSS design system (`app/static/app.css`) with the Atkinson Hyperlegible fonts. There is no build step, and all front-end assets are vendored.
 
 ## Releases
 

@@ -122,14 +122,15 @@
 
   <section class="tab-panel" data-tab="history">
     {% if history %}
-    <div class="overflow-auto">
-    <table>
+    {# Column names, shared by the header and the stacked mobile rows (data-label) #}
+    {% set col_mode, col_score, col_duration = t("history.mode"), t("history.score"), t("history.duration") %}
+    <table class="stack">
       <thead>
         <tr>
           <th>{{ t("history.date") }}</th>
-          <th>{{ t("history.mode") }}</th>
-          <th>{{ t("history.score") }}</th>
-          <th class="num">{{ t("history.duration") }}</th>
+          <th>{{ col_mode }}</th>
+          <th>{{ col_score }}</th>
+          <th class="num">{{ col_duration }}</th>
           <th><span class="visually-hidden">{{ t("history.delete") }}</span></th>
         </tr>
       </thead>
@@ -137,15 +138,14 @@
         {% for attempt in history %}
         <tr>
           <td><a href="{{ path('attempt_review', attempt_id=attempt.id) }}">{{ attempt.finished_at | dt }}</a></td>
-          <td>{{ t("mode." ~ attempt.mode) }}</td>
-          <td>{{ attempt_result(attempt) }}</td>
-          <td class="num">{{ attempt.duration_seconds | duration }}</td>
-          <td class="num">{{ confirm_form(path('delete_attempt', attempt_id=attempt.id), t("history.delete"), t("history.delete_confirm"), "btn-quiet") }}</td>
+          <td data-label="{{ col_mode }}">{{ t("mode." ~ attempt.mode) }}</td>
+          <td data-label="{{ col_score }}">{{ attempt_result(attempt) }}</td>
+          <td class="num" data-label="{{ col_duration }}">{{ attempt.duration_seconds | duration }}</td>
+          <td class="num row-action">{{ confirm_form(path('delete_attempt', attempt_id=attempt.id), t("history.delete"), t("history.delete_confirm"), "btn-quiet") }}</td>
         </tr>
         {% endfor %}
       </tbody>
     </table>
-    </div>
     {% else %}
     <p class="muted">{{ t("history.empty") }}</p>
     {% endif %}

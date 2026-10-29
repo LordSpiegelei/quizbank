@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from app.models import Attempt
 
 # Line chart geometry (SVG user units); the template only loops over what is computed here.
-WIDTH, HEIGHT, PAD, AXIS_BAND = 600, 160, 12, 20
+WIDTH, HEIGHT, PAD = 600, 160, 12
 TICKS = (0, 50, 100)
 
 
@@ -43,11 +43,15 @@ class LineChart:
     points: list[ChartPoint]
     width: int = WIDTH
     height: int = HEIGHT
-    view_height: int = HEIGHT + AXIS_BAND
 
     @property
     def ticks(self) -> list[tuple[int, float]]:
         return [(tick, y_of(tick)) for tick in TICKS]
+
+    @property
+    def inset(self) -> float:
+        """Horizontal padding as a percentage of the width, for the HTML axis labels."""
+        return 100 * PAD / WIDTH
 
     @property
     def polyline(self) -> str:
