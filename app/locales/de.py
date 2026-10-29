@@ -157,6 +157,7 @@ TEXTS: dict[str, str] = {
     "assess.title": "Selbstbewertung",
     "assess.points": "Punkte",
     "assess.score": "Erreichte Punkte",
+    "assess.total": "Summe",
     "assess.save": "Bewertung speichern",
     "assess.update": "Bewertung ändern",
     "assess.invalid": "Die Bewertung ist ungültig: Punkte zwischen 0 und dem Maximum je Kriterium angeben.",
@@ -169,6 +170,7 @@ TEXTS: dict[str, str] = {
     # Review
     "review.title": "Auswertung",
     "review.finished_at": "Abgegeben",
+    "review.percent": "Anteil",
     "review.your_choice": "deine Wahl",
     "review.correct_option": "richtig",
     "review.your_answer": "Deine Antwort",

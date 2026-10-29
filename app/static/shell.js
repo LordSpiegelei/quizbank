@@ -61,4 +61,22 @@
     for (const [key, value] of new URL(location.href).searchParams) target.searchParams.set(key, value);
     next.value = target.pathname + target.search + target.hash;
   });
+
+  // Self-assessment: show the rubric total while typing (the server validates again).
+  for (const output of document.querySelectorAll("output[data-sum-of]")) {
+    const inputs = output.form.querySelectorAll(`input[name="${output.dataset.sumOf}"]`);
+    const update = () => {
+      const total = [...inputs].reduce((sum, i) => sum + (Number(i.value.replace(",", ".")) || 0), 0);
+      output.value = (Math.round(total * 100) / 100).toLocaleString(document.documentElement.lang);
+    };
+    for (const input of inputs) input.addEventListener("input", update);
+  }
+
+  // Copy buttons: copy the textarea just before them, then say so.
+  for (const button of document.querySelectorAll("button[data-copy]")) {
+    button.addEventListener("click", async () => {
+      await navigator.clipboard.writeText(button.previousElementSibling.value);
+      button.textContent = button.dataset.done;
+    });
+  }
 })();

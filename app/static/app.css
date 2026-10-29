@@ -154,7 +154,7 @@ td form button { padding: 0.3rem 0.75rem; font-size: var(--t-small); }
 /* ---- Tables, panels, disclosure -------------------------------------------------------- */
 .overflow-auto { overflow-x: auto; margin-bottom: var(--space); }
 table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
-th, td { text-align: left; padding: 0.6rem 0.75rem; border-bottom: 1px solid var(--rule); vertical-align: top; }
+th, td { text-align: left; padding: 0.6rem 0.75rem; border-bottom: 1px solid var(--rule); vertical-align: middle; }
 thead th { font-size: var(--t-small); font-weight: 600; color: var(--ink-muted); border-bottom-color: var(--ink-muted); }
 tbody tr:hover { background: color-mix(in srgb, var(--sheet-sunk) 60%, transparent); }
 
@@ -184,7 +184,7 @@ nav[aria-label="breadcrumb"] li + li::before { content: "/"; margin-right: 0.4re
 .correct, .passed { --st: var(--right); --st-wash: var(--right-wash); }
 .wrong, .unanswered, .failed { --st: var(--wrong); --st-wash: var(--wrong-wash); }
 .partial, .pending { --st: var(--ink-muted); --st-wash: var(--sheet-sunk); }
-mark.passed, mark.failed, mark.status { background: var(--st-wash); color: var(--st); font-weight: 600; }
+mark.status { background: var(--st-wash); color: var(--st); font-weight: 600; }
 
 .facts { display: grid; grid-template-columns: max-content 1fr; gap: 0.35rem 1.5rem; }
 .facts dt { color: var(--ink-muted); }
@@ -381,11 +381,13 @@ ul.errors { margin-bottom: 0; }
 .choices:disabled { opacity: 1; }
 .choices > .muted { margin: -0.75rem 0 0.75rem; }
 
-/* An option is a row with an answer bubble that fills in when chosen */
-label.option {
+/* An option is a row with an answer bubble that fills in when chosen (quiz: a label with an
+   input; review: a plain row with the same state classes) */
+.option {
   display: flex; align-items: center; gap: 0.9rem; margin: 0 0 0.5rem; padding: 0.7rem 0.9rem;
-  background: var(--sheet); border: 1px solid var(--rule); border-radius: var(--radius-panel); cursor: pointer;
+  background: var(--sheet); border: 1px solid var(--rule); border-radius: var(--radius-panel);
 }
+label.option { cursor: pointer; }
 label.option:hover { border-color: var(--ink-muted); }
 label.option input { position: absolute; opacity: 0; pointer-events: none; }
 .mark {
@@ -435,19 +437,48 @@ fieldset:disabled label.option:hover { border-color: var(--rule); }
 .sheet-submit { width: 100%; }
 .keys { color: var(--ink-muted); margin-top: 1rem; }
 
-/* ---- Review ---------------------------------------------------------------------------- */
-.review-options li { padding: 0.3rem 0.6rem; border-radius: var(--radius); margin-bottom: 0.25rem; border-left: 3px solid transparent; }
-.review-options .tag { margin-left: 0.5rem; color: var(--ink-muted); }
+/* ---- Review -------------------------------------------------------------------------- */
+.review-result { display: flex; flex-wrap: wrap; align-items: center; gap: 1rem 3rem; margin-bottom: 2.5rem; }
+.score { margin: 0; display: flex; align-items: baseline; gap: 0.6rem; font-variant-numeric: tabular-nums; }
+.score-value { font-size: 4.5rem; font-weight: 800; line-height: 1; letter-spacing: -0.04em; }
+.score-max { font-size: var(--t-h4); color: var(--ink-muted); }
+.result-meta { display: grid; gap: 0.75rem; }
+.result-meta p { margin: 0; }
+/* Stays inline so it sits on the text baseline; an inline-flex box would take the icon's
+   bottom edge as its baseline and ride up next to the score. */
+mark.status { white-space: nowrap; }
+mark.status .icon { margin-right: 0.25em; }
+.result-meta mark { padding: 0.2rem 0.6rem; border-radius: 999px; }
+.result-meta .factbar { margin: 0; }
+
+.review-body { display: grid; grid-template-columns: 12rem minmax(0, 1fr); gap: 2.5rem; align-items: start; }
+.review-body .sheet-col { top: 1.5rem; }
+a.sheet-bubble { display: grid; place-items: center; text-decoration: none; }
+.review-item { padding: 1.5rem; scroll-margin-top: 1.5rem; }
+.review-item:target { border-color: var(--ballpoint); }
+.review-item .question-text { font-size: var(--t-body); }
+.review-item .choices { margin-bottom: 1rem; }
 .option-explanation { color: var(--ink-muted); font-size: var(--t-small); }
 .option-explanation p { margin-bottom: 0.25rem; }
 .choices .option-explanation { margin: -0.25rem 0 0.75rem 3.8rem; }
+.explanation { border-top: 1px solid var(--rule); padding-top: 0.75rem; }
+.explanation h4 { margin-top: 0; }
+.source { margin: 0.5rem 0 0; }
 .text-answer { white-space: pre-wrap; }
 
-.review-options li:is(.correct, .wrong) { border-color: var(--st); }
+/* ---- Self-assessment ------------------------------------------------------------------- */
+form.assess { margin: 1.25rem 0; padding: 1rem 1.25rem; background: var(--paper); border-radius: var(--radius); }
+form.assess h4 { margin-top: 0; }
+form.assess input[type="number"] { width: 5.5rem; display: inline-block; margin: 0; }
+form.assess tfoot th, form.assess tfoot td { border-bottom: 0; font-weight: 700; }
+form.assess output { font-variant-numeric: tabular-nums; }
+.inline-field { display: flex; align-items: center; gap: 0.5rem; margin-top: 0.3rem; }
+.case-text summary .icon { color: var(--ink-muted); }
+.case-text textarea { font-family: var(--mono); font-size: var(--t-small); }
 
 /* ---- Statistics: one series in ballpoint; thin marks, hairline grid ------------------- */
 .topic-stats th { font-weight: 400; white-space: nowrap; }
-.topic-stats .bar-cell { width: 60%; vertical-align: middle; }
+.topic-stats .bar-cell { width: 60%; }
 .bar { height: 10px; background: var(--sheet-sunk); border-radius: 0 4px 4px 0; }
 .bar span { display: block; height: 100%; background: var(--ballpoint); border-radius: 0 4px 4px 0; }
 .line-chart { width: 100%; height: auto; overflow: visible; }
@@ -458,11 +489,6 @@ fieldset:disabled label.option:hover { border-color: var(--rule); }
 .line-chart .dot { fill: var(--ballpoint); stroke: var(--sheet); stroke-width: 2; pointer-events: none; }
 .line-chart .hit { fill: transparent; }
 .line-chart a:hover .dot, .line-chart a:focus .dot { r: 6; }
-
-/* ---- Self-assessment ------------------------------------------------------------------- */
-form.assess input[type="number"] { width: 6rem; display: inline-block; margin: 0; }
-form.assess td { vertical-align: middle; }
-.case-text textarea { font-family: var(--mono); font-size: var(--t-small); }
 
 /* ---- Small screens: the sidebar becomes a drawer --------------------------------------- */
 @media (max-width: 767px) {
@@ -496,6 +522,9 @@ form.assess td { vertical-align: middle; }
   .sheet-col { position: static; border-top: 1px solid var(--rule); padding-top: 1.25rem; }
   .question-text { font-size: var(--t-body); }
   .choices .option-explanation { margin-left: 0.9rem; }
+  .review-body { grid-template-columns: minmax(0, 1fr); gap: 1.5rem; }
+  .review-item { padding: 1rem; }
+  .score-value { font-size: 3.25rem; }
   article { padding: 1rem; }
   article > header { margin: -1rem -1rem 1rem; padding: 0.75rem 1rem; }
   article > footer { margin: 1rem -1rem -1rem; padding: 0.75rem 1rem; }

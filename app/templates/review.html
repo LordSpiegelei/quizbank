@@ -1,100 +1,132 @@
 {% extends "base.html" %}
-{% from "_macros.html" import attempt_result, question_menu %}
+{% from "_macros.html" import icon, page_head, question_menu, verdict_badge %}
 {% block title %}{{ t("review.title") }}: {{ exam.title }} – {{ super() }}{% endblock %}
 {% block content %}
-<nav aria-label="breadcrumb">
-  <ul>
-    <li><a href="{{ path('course_list') }}">{{ t("nav.courses") }}</a></li>
-    <li><a href="{{ path('course_detail', course_id=exam.course.id) }}">{{ exam.course.label }}</a></li>
-    <li><a href="{{ path('exam_detail', exam_id=exam.id) }}">{{ exam.title }}</a></li>
-    <li>{{ t("review.title") }}</li>
-  </ul>
-</nav>
-<h1>{{ t("review.title") }}</h1>
+{{ page_head(t("review.title"), [(t("nav.courses"), path("course_list")), (exam.course.label, path("course_detail", course_id=exam.course_id)), (exam.title, path("exam_detail", exam_id=exam.id)), (t("review.title"), none)]) }}
 
-<dl class="facts">
-  <dt>{{ t("history.score") }}</dt><dd>{{ attempt_result(attempt) }}</dd>
-  {% if attempt.pass_mark is not none %}
-  <dt>{{ t("course.pass_mark") }}</dt><dd>{{ t("common.points", n=attempt.pass_mark | num) }}</dd>
-  {% endif %}
-  <dt>{{ t("history.mode") }}</dt><dd>{{ t("mode." ~ attempt.mode) }}</dd>
-  <dt>{{ t("review.finished_at") }}</dt><dd>{{ attempt.finished_at | dt }}</dd>
-  <dt>{{ t("history.duration") }}</dt><dd>{{ attempt.duration_seconds | duration }}</dd>
-</dl>
-
-{% for item in items %}
-{% set answer, q = item.answer, item.answer.snapshot %}
-<article id="q{{ loop.index }}">
-  <header>
-    <strong>{{ t("quiz.question") }} {{ loop.index }}</strong>
-    · <mark class="status {{ item.status }}">{{ t("review.status." ~ item.status) }}</mark>
-    · {{ item.result.score | num }} / {{ item.result.max_score | num }} {{ t("quiz.points") }}
-    <br><small>{{ q.topic }}{% if q.tags %} · {{ q.tags | join(", ") }}{% endif %}</small>
-    {% if answer.question_id in questions %}
-      {{ question_menu(questions[answer.question_id], path('attempt_review', attempt_id=attempt.id) ~ '#q' ~ loop.index) }}
-    {% endif %}
-  </header>
-  {% if q.scenario %}<div class="scenario">{{ q.scenario | md }}</div>{% endif %}
-  {{ q.question | md }}
-
-  {% if q.type == "open" %}
-    <h4>{{ t("review.your_answer") }}</h4>
-    {% if answer.text_answer %}<blockquote class="text-answer">{{ answer.text_answer }}</blockquote>
-    {% else %}<p><em>{{ t("review.no_answer") }}</em></p>{% endif %}
-    {% if q.model_answer %}<h4>{{ t("review.model_answer") }}</h4>{{ q.model_answer | md }}{% endif %}
-    <h4>{{ t("assess.title") }}</h4>
-    <form method="post" class="assess" action="{{ path('self_assess_form', attempt_id=attempt.id, answer_id=answer.id) }}">
-      {% if q.rubric %}
-      <table>
-        <thead><tr><th>{{ t("review.rubric") }}</th><th class="num">{{ t("assess.points") }}</th></tr></thead>
-        <tbody>
-          {% for row in q.rubric %}
-          <tr>
-            <td>{{ row.criterion }}</td>
-            <td class="num">
-              <input type="number" name="rubric" min="0" max="{{ row.points }}" step="any" required
-                     value="{{ answer.rubric_scores[loop.index0] | num if answer.rubric_scores else '' }}"
-                     aria-label="{{ row.criterion }}"> / {{ row.points | num }}
-            </td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-      {% else %}
-      <label>{{ t("assess.score") }}
-        <input type="number" name="self_score" min="0" max="{{ q.points }}" step="any" required
-               value="{{ answer.self_score | num }}"> / {{ q.points | num }}
-      </label>
+{# ---- Result: the score is the one big element of the page ---------------------------- #}
+<section class="review-result">
+  <p class="score">
+    <span class="score-value">{{ attempt.score | num }}</span>
+    <span class="score-max">/ {{ t("common.points", n=attempt.max_score | num) }}</span>
+  </p>
+  <div class="result-meta">
+    {% if attempt.verdict %}<p>{{ verdict_badge(attempt) }}</p>{% endif %}
+    <dl class="factbar">
+      <div><dt>{{ t("review.percent") }}</dt><dd>{{ attempt.percent | round | int }} %</dd></div>
+      {% if attempt.pass_mark is not none %}
+      <div><dt>{{ t("course.pass_mark") }}</dt><dd>{{ t("common.points", n=attempt.pass_mark | num) }}</dd></div>
       {% endif %}
-      <button type="submit">{{ t("assess.save") if answer.self_score is none else t("assess.update") }}</button>
-    </form>
-    <details class="case-text">
-      <summary>{{ t("case.copy_title") }}</summary>
-      <p><small>{{ t("case.copy_hint") }}</small></p>
-      <textarea readonly rows="10">{% include "case_text.txt" %}</textarea>
-      <button type="button" class="btn-quiet" data-done="{{ t('case.copied') }}"
-              onclick="navigator.clipboard.writeText(this.previousElementSibling.value).then(() => this.textContent = this.dataset.done)">{{ t("case.copy") }}</button>
-    </details>
-  {% else %}
-    <ol class="review-options" type="A">
-      {% for option in item.options %}
-      <li class="{{ 'correct' if option.is_correct }} {{ 'wrong' if option.is_selected and not option.is_correct }}">
-        {{ option.text | md_inline }}
-        {% if option.is_correct %}<small class="tag">✓ {{ t("review.correct_option") }}</small>{% endif %}
-        {% if option.is_selected %}<small class="tag">● {{ t("review.your_choice") }}</small>{% endif %}
-        {% if option.explanation %}<div class="option-explanation">{{ option.explanation | md }}</div>{% endif %}
-      </li>
+      <div><dt>{{ t("history.mode") }}</dt><dd>{{ t("mode." ~ attempt.mode) }}</dd></div>
+      <div><dt>{{ t("review.finished_at") }}</dt><dd>{{ attempt.finished_at | dt }}</dd></div>
+      <div><dt>{{ t("history.duration") }}</dt><dd>{{ attempt.duration_seconds | duration }}</dd></div>
+    </dl>
+  </div>
+</section>
+
+<div class="review-body">
+  <aside class="sheet-col" aria-label="{{ t('quiz.sheet') }}">
+    <h2>{{ t("quiz.sheet") }}</h2>
+    <ol class="sheet">
+      {% for item in items %}
+      <li><a class="sheet-bubble {{ item.status }}" href="#q{{ loop.index }}" title="{{ t('review.status.' ~ item.status) }}">{{ loop.index }}</a></li>
       {% endfor %}
     </ol>
-  {% endif %}
+    <a class="btn-quiet sheet-submit" href="{{ path('exam_detail', exam_id=exam.id) }}">{{ icon("arrow-left") }}{{ t("review.back") }}</a>
+  </aside>
 
-  {% if q.explanation %}
-    <h4>{{ t("review.explanation") }}</h4>
-    {{ q.explanation | md }}
-  {% endif %}
-  {% if q.source %}<footer><small>{{ t("review.source") }}: {{ q.source }}</small></footer>{% endif %}
-</article>
-{% endfor %}
+  <div class="review-items">
+    {% for item in items %}
+    {% set answer, q = item.answer, item.answer.snapshot %}
+    <article class="review-item" id="q{{ loop.index }}">
+      <div class="q-head">
+        <span class="q-pos">{{ t("quiz.question") }} {{ loop.index }}</span>
+        <mark class="status {{ item.status }}">{{ t("review.status." ~ item.status) }}</mark>
+        <span class="muted">{{ item.result.score | num }} / {{ t("common.points", n=item.result.max_score | num) }}</span>
+        <span class="q-tools">
+          <small class="muted">{{ q.topic }}</small>
+          {% if answer.question_id in questions %}
+          {{ question_menu(questions[answer.question_id], path('attempt_review', attempt_id=attempt.id) ~ '#q' ~ loop.index) }}
+          {% endif %}
+        </span>
+      </div>
+      {% if q.scenario %}<div class="scenario">{{ q.scenario | md }}</div>{% endif %}
+      <div class="question-text">{{ q.question | md }}</div>
 
-<p><a href="{{ path('exam_detail', exam_id=exam.id) }}">{{ t("review.back") }}</a></p>
+      {% if q.type == "open" %}
+        <h4>{{ t("review.your_answer") }}</h4>
+        {% if answer.text_answer %}<blockquote class="text-answer">{{ answer.text_answer }}</blockquote>
+        {% else %}<p class="muted"><em>{{ t("review.no_answer") }}</em></p>{% endif %}
+        {% if q.model_answer %}<h4>{{ t("review.model_answer") }}</h4>{{ q.model_answer | md }}{% endif %}
+
+        <form method="post" class="assess" action="{{ path('self_assess_form', attempt_id=attempt.id, answer_id=answer.id) }}">
+          <h4>{{ t("assess.title") }}</h4>
+          {% if q.rubric %}
+          <table>
+            <thead><tr><th>{{ t("review.rubric") }}</th><th class="num">{{ t("assess.points") }}</th></tr></thead>
+            <tbody>
+              {% for row in q.rubric %}
+              <tr>
+                <td>{{ row.criterion }}</td>
+                <td class="num">
+                  <input type="number" name="rubric" min="0" max="{{ row.points }}" step="any" required
+                         value="{{ answer.rubric_scores[loop.index0] | num if answer.rubric_scores else '' }}"
+                         aria-label="{{ row.criterion }}"> <span class="muted">/ {{ row.points | num }}</span>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+            <tfoot>
+              <tr>
+                <th>{{ t("assess.total") }}</th>
+                {# shell.js keeps the sum up to date while typing; the server checks it again. #}
+                <td class="num"><output data-sum-of="rubric">{{ answer.self_score | num if answer.self_score is not none else t("common.none") }}</output>
+                  <span class="muted">/ {{ q.points | num }}</span></td>
+              </tr>
+            </tfoot>
+          </table>
+          {% else %}
+          <label>{{ t("assess.score") }}
+            <span class="inline-field">
+              <input type="number" name="self_score" min="0" max="{{ q.points }}" step="any" required
+                     value="{{ answer.self_score | num }}"> <span class="muted">/ {{ q.points | num }}</span>
+            </span>
+          </label>
+          {% endif %}
+          <button type="submit">{{ t("assess.save") if answer.self_score is none else t("assess.update") }}</button>
+        </form>
+
+        <details class="case-text">
+          <summary>{{ icon("copy") }}{{ t("case.copy_title") }}</summary>
+          <p class="muted"><small>{{ t("case.copy_hint") }}</small></p>
+          <textarea readonly rows="10">{% include "case_text.txt" %}</textarea>
+          <button type="button" class="btn-quiet" data-copy data-done="{{ t('case.copied') }}">{{ icon("copy") }}{{ t("case.copy") }}</button>
+        </details>
+      {% else %}
+        <div class="choices">
+          {% for option in item.options %}
+          <div class="option {{ 'chosen' if option.is_selected }} {{ 'correct' if option.is_correct }} {{ 'wrong' if option.is_wrong }}">
+            <span class="mark" aria-hidden="true">{{ letters[loop.index0] }}</span>
+            <span class="option-text">{{ option.text | md_inline }}</span>
+            {% if option.is_selected %}<span class="visually-hidden">({{ t("review.your_choice") }})</span>{% endif %}
+            {% if option.is_correct %}<span class="visually-hidden">({{ t("review.correct_option") }})</span>{% endif %}
+            {% if option.is_correct %}<span class="verdict right">{{ icon("check") }}</span>
+            {% elif option.is_wrong %}<span class="verdict wrong">{{ icon("x") }}</span>{% endif %}
+          </div>
+          {% if option.explanation %}<div class="option-explanation">{{ option.explanation | md }}</div>{% endif %}
+          {% endfor %}
+        </div>
+      {% endif %}
+
+      {% if q.explanation %}
+      <div class="explanation">
+        <h4>{{ t("review.explanation") }}</h4>
+        {{ q.explanation | md }}
+      </div>
+      {% endif %}
+      {% if q.source %}<p class="muted source"><small>{{ t("review.source") }}: {{ q.source }}</small></p>{% endif %}
+    </article>
+    {% endfor %}
+  </div>
+</div>
 {% endblock %}

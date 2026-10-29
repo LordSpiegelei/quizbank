@@ -137,6 +137,14 @@ class Attempt(SQLModel, table=True):
     answers: list["Answer"] = _children("attempt", order_by="Answer.position")
 
     @property
+    def verdict(self) -> str | None:
+        """passed / failed; pending while open questions await self-assessment; None without a
+        pass mark (practice and retry, CLAUDE.md §10)."""
+        if self.passed is not None:
+            return "passed" if self.passed else "failed"
+        return "pending" if self.pass_mark is not None else None
+
+    @property
     def percent(self) -> float:
         """Score as a percentage of the maximum (0 for an attempt without points)."""
         return 100 * (self.score or 0) / self.max_score if self.max_score else 0.0

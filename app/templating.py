@@ -45,6 +45,7 @@ def make_templates(t: Translator, url_path_for: Callable[..., Any]) -> Jinja2Tem
     templates.env.globals["path"] = path
     templates.env.globals["flags"] = FLAGS
     templates.env.globals["flag_icons"] = {"starred": "star", "disabled": "eye-off"}
+    templates.env.globals["letters"] = "ABCDEFGHIJ"  # option labels; quiz.js has the same
     templates.env.globals["icons_url"] = str(url_path_for("static", path="icons.svg"))
     templates.env.filters["num"] = format_number
     templates.env.filters["dt"] = format_datetime
