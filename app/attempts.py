@@ -215,6 +215,11 @@ class ReviewOption:
     is_correct: bool
     is_selected: bool
 
+    @property
+    def is_wrong(self) -> bool:
+        """A wrong pick; same rule as optionClass() in quiz.js."""
+        return self.is_selected and not self.is_correct
+
 
 @dataclass(frozen=True)
 class ReviewItem:

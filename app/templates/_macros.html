@@ -20,16 +20,19 @@
   </header>
 {%- endmacro %}
 
+{# Passed / failed / not yet assessed, with its symbol; nothing for practice attempts. #}
+{% macro verdict_badge(attempt) -%}
+  {% set verdict = attempt.verdict %}
+  {% if verdict %}
+  <mark class="status {{ verdict }}">
+    {%- if verdict == "passed" %}{{ icon("check") }}{% elif verdict == "failed" %}{{ icon("x") }}{% endif %}
+    {{ t("result." ~ verdict) }}</mark>
+  {% endif %}
+{%- endmacro %}
+
 {% macro attempt_result(attempt) -%}
   {% if attempt %}
-    {{ attempt.score | num }} / {{ attempt.max_score | num }}
-    {% if attempt.passed is not none %}
-      <mark class="{{ 'passed' if attempt.passed else 'failed' }}">
-        {{ t("result.passed") if attempt.passed else t("result.failed") }}
-      </mark>
-    {% elif attempt.pass_mark is not none %}
-      <small>({{ t("result.pending") }})</small>
-    {% endif %}
+    {{ attempt.score | num }} / {{ attempt.max_score | num }} {{ verdict_badge(attempt) }}
   {%- else -%}
     {{ t("common.none") }}
   {%- endif %}
