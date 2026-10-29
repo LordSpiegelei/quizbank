@@ -180,9 +180,11 @@ nav[aria-label="breadcrumb"] li + li::before { content: "/"; margin-right: 0.4re
 .notice { padding: 0.75rem 1rem; border-radius: var(--radius); background: var(--sheet); border: 1px solid var(--rule); border-left-width: 4px; }
 .notice.error { border-left-color: var(--wrong); }
 .notice.success { border-left-color: var(--right); }
-mark.passed, mark.status.correct { background: var(--right-wash); color: var(--right); font-weight: 600; }
-mark.failed, mark.status.wrong, mark.status.unanswered { background: var(--wrong-wash); color: var(--wrong); font-weight: 600; }
-mark.status.partial, mark.status.pending { background: var(--sheet-sunk); color: var(--ink-muted); font-weight: 600; }
+/* Status colours, defined once: components read --st / --st-wash */
+.correct, .passed { --st: var(--right); --st-wash: var(--right-wash); }
+.wrong, .unanswered, .failed { --st: var(--wrong); --st-wash: var(--wrong-wash); }
+.partial, .pending { --st: var(--ink-muted); --st-wash: var(--sheet-sunk); }
+mark.passed, mark.failed, mark.status { background: var(--st-wash); color: var(--st); font-weight: 600; }
 
 .facts { display: grid; grid-template-columns: max-content 1fr; gap: 0.35rem 1.5rem; }
 .facts dt { color: var(--ink-muted); }
@@ -349,48 +351,99 @@ ul.errors { margin-bottom: 0; }
 .menu-list button:hover { background: var(--sheet-sunk); filter: none; }
 .menu-list .icon { color: var(--ink-muted); }
 
-/* ---- Quiz runner ----------------------------------------------------------------------- */
-.quiz-bar { display: flex; flex-wrap: wrap; gap: var(--space); justify-content: space-between; align-items: baseline; margin-bottom: var(--space); }
-.timer { font-variant-numeric: tabular-nums; }
-.timer.low { color: var(--wrong); }
-.scenario { border-left: 3px solid var(--rule); padding-left: var(--space); margin-bottom: var(--space); }
+/* ---- Quiz runner (focus mode, no sidebar) -------------------------------------------- */
+.focus { min-height: 100vh; display: flex; flex-direction: column; }
+.focus-bar {
+  position: sticky; top: 0; z-index: 20; display: flex; align-items: center; gap: 1rem;
+  padding: 0.6rem 1.5rem; background: var(--sheet); border-bottom: 1px solid var(--rule);
+}
+.focus-title { display: flex; flex-direction: column; min-width: 0; line-height: 1.3; margin-right: auto; }
+.focus-title strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.focus-title .muted { font-size: var(--t-small); }
+.timer { display: inline-flex; align-items: center; gap: 0.45rem; font-size: var(--t-h4); font-variant-numeric: tabular-nums; }
+.timer .icon { color: var(--ink-muted); }
+.timer.low, .timer.low .icon { color: var(--wrong); }
+.progress { height: 3px; background: var(--rule); }
+.progress span { display: block; height: 100%; background: var(--ballpoint); transition: width 200ms; }
+
+.focus-body {
+  display: grid; grid-template-columns: minmax(0, 46rem) 16rem; gap: 3rem; justify-content: center;
+  width: 100%; padding: 2.5rem 1.5rem 4rem;
+}
+.q-head { display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem 1rem; margin-bottom: 1.25rem; }
+.q-pos { font-weight: 700; }
+.q-head .muted { font-size: var(--t-small); }
+.q-tools { margin-left: auto; display: inline-flex; align-items: center; gap: 0.35rem; color: var(--ink-muted); }
+.question-text { font-size: var(--t-h4); line-height: 1.5; margin-bottom: 1.5rem; }
+.question-text > :last-child { margin-bottom: 0; }
+.scenario { border-left: 3px solid var(--rule); padding-left: var(--space); margin-bottom: var(--space); color: var(--ink-muted); }
+.choices { margin-bottom: 1.5rem; }
+.choices:disabled { opacity: 1; }
+.choices > .muted { margin: -0.75rem 0 0.75rem; }
+
+/* An option is a row with an answer bubble that fills in when chosen */
 label.option {
-  display: flex; gap: 0.75rem; align-items: baseline; margin-bottom: 0.5rem;
-  padding: 0.6rem 0.85rem; border: 1px solid var(--rule); border-radius: var(--radius); background: var(--sheet); cursor: pointer;
+  display: flex; align-items: center; gap: 0.9rem; margin: 0 0 0.5rem; padding: 0.7rem 0.9rem;
+  background: var(--sheet); border: 1px solid var(--rule); border-radius: var(--radius-panel); cursor: pointer;
 }
 label.option:hover { border-color: var(--ink-muted); }
-label.option:has(input:checked) { border-color: var(--ballpoint); background: var(--ballpoint-wash); }
-label.option input { margin: 0; align-self: center; }
-.letter { font-weight: 700; min-width: 1.25rem; }
-.quiz-nav { display: flex; gap: var(--space); justify-content: space-between; align-items: center; margin-bottom: var(--space); }
+label.option input { position: absolute; opacity: 0; pointer-events: none; }
+.mark {
+  flex: none; display: grid; place-items: center; width: 2rem; height: 2rem; border-radius: 50%;
+  border: 1.5px solid var(--ink-muted); color: var(--ink-muted); font-weight: 700; font-size: var(--t-small);
+  transition: background-color 120ms, color 120ms, border-color 120ms;
+}
+.option-text { flex: 1; min-width: 0; }
+.option-text > :last-child { margin-bottom: 0; }
+label.option:has(input:focus-visible) { box-shadow: var(--focus); }
+fieldset:disabled label.option { cursor: default; }
+fieldset:disabled label.option:hover { border-color: var(--rule); }
+/* State classes from optionClass(), in source order: chosen fills the bubble blue; after
+   checking, the solution is green (filled if picked, outlined if missed), a wrong pick red. */
+.option.chosen { border-color: var(--ballpoint); }
+.option.chosen .mark { background: var(--ballpoint); border-color: var(--ballpoint); color: var(--on-ballpoint); }
+.option.correct, .option.wrong { border-color: var(--st); background: var(--st-wash); }
+.option.correct .mark { background: transparent; border-color: var(--st); color: var(--st); }
+.option.correct.chosen .mark, .option.wrong .mark { background: var(--st); border-color: var(--st); color: var(--sheet); }
+.verdict { display: none; flex: none; color: var(--st); }
+.option.correct .verdict.right, .option.wrong .verdict.wrong { display: inline-flex; }
+
+.feedback { border-top: 1px solid var(--rule); padding-top: 1.25rem; margin-bottom: 1.5rem; }
+.feedback-head { display: flex; align-items: center; gap: 0.75rem; font-variant-numeric: tabular-nums; }
+.feedback h4 { margin-top: 1rem; }
+.quiz-nav { display: flex; gap: var(--space); justify-content: space-between; align-items: center; padding-top: 0.5rem; }
 .save-status { color: var(--ink-muted); text-align: center; flex: 1; font-size: var(--t-small); }
-.question-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(2.75rem, 1fr)); gap: 0.5rem; margin-bottom: var(--space); }
-.question-grid button { padding: 0.4rem 0; background: var(--sheet); color: var(--ink); border-color: var(--rule); font-variant-numeric: tabular-nums; }
-.question-grid button.answered { background: var(--ballpoint-wash); }
-.question-grid button.current { border-color: var(--ballpoint); border-width: 2px; }
-.keys { color: var(--ink-muted); text-align: center; }
+
+/* The answer sheet: one bubble per question */
+.sheet-col { position: sticky; top: 5.5rem; align-self: start; }
+.sheet-col h2 { font-size: var(--t-h4); margin: 0 0 0.25rem; }
+.sheet { list-style: none; padding: 0; margin: 0.75rem 0 1.25rem; display: grid; grid-template-columns: repeat(auto-fill, 2.25rem); gap: 0.45rem; }
+.sheet-bubble {
+  position: relative; width: 2.25rem; height: 2.25rem; padding: 0; border-radius: 50%;
+  background: var(--sheet); color: var(--ink-muted); border: 1.5px solid var(--rule);
+  font-size: var(--t-small); font-variant-numeric: tabular-nums;
+}
+.sheet-bubble:hover { border-color: var(--ink-muted); filter: none; }
+.sheet-bubble.answered { background: var(--ballpoint-wash); border-color: var(--ballpoint); color: var(--ballpoint); }
+.sheet-bubble[aria-current] { box-shadow: 0 0 0 2px var(--paper), 0 0 0 4px var(--ink); color: var(--ink); }
+.sheet-bubble.starred::after {
+  content: ""; position: absolute; top: -2px; right: -2px; width: 0.65rem; height: 0.65rem;
+  border-radius: 50%; background: var(--marker); border: 2px solid var(--paper);
+}
+.sheet-bubble:is(.correct, .wrong, .unanswered) { background: var(--st); border-color: var(--st); color: var(--sheet); }
+.sheet-bubble:is(.partial, .pending) { border-color: var(--st); border-style: dashed; }
+.sheet-submit { width: 100%; }
+.keys { color: var(--ink-muted); margin-top: 1rem; }
 
 /* ---- Review ---------------------------------------------------------------------------- */
 .review-options li { padding: 0.3rem 0.6rem; border-radius: var(--radius); margin-bottom: 0.25rem; border-left: 3px solid transparent; }
 .review-options .tag { margin-left: 0.5rem; color: var(--ink-muted); }
 .option-explanation { color: var(--ink-muted); font-size: var(--t-small); }
 .option-explanation p { margin-bottom: 0.25rem; }
+.choices .option-explanation { margin: -0.25rem 0 0.75rem 3.8rem; }
 .text-answer { white-space: pre-wrap; }
 
-/* One colour per status, shared by instant feedback, review and the question grid */
-.review-options li.correct, label.option.correct, .question-grid button.correct { border-color: var(--right); }
-.review-options li.wrong, label.option.wrong,
-.question-grid button.wrong, .question-grid button.unanswered { border-color: var(--wrong); }
-.question-grid button.partial { border-color: var(--marker); }
-fieldset:disabled label.option { cursor: default; }
-fieldset:disabled:has(label.option) { opacity: 1; }
-.feedback mark.status { margin-right: 0.5rem; }
-
-/* ---- Star / skip toggles in the quiz header ------------------------------------------- */
-.flags { display: inline-flex; gap: 0.5rem; flex-wrap: wrap; vertical-align: middle; }
-button.flag { padding: 0.2rem 0.65rem; font-size: var(--t-small); font-weight: 400; background: transparent; color: var(--ink-muted); border-color: var(--rule); }
-button.flag:hover { border-color: var(--ink-muted); filter: none; }
-button.flag.on { color: var(--ink); border-color: var(--ink-muted); background: var(--sheet-sunk); }
+.review-options li:is(.correct, .wrong) { border-color: var(--st); }
 
 /* ---- Statistics: one series in ballpoint; thin marks, hairline grid ------------------- */
 .topic-stats th { font-weight: 400; white-space: nowrap; }
@@ -438,6 +491,11 @@ form.assess td { vertical-align: middle; }
   .tab-bar label { white-space: nowrap; }
   .qlist li { grid-template-columns: 1.5rem minmax(0, 1fr) auto 2.5rem; }
   .qtopic { display: none; }
+  .focus-bar { padding: 0.5rem 0.75rem; gap: 0.5rem; }
+  .focus-body { grid-template-columns: minmax(0, 1fr); gap: 2rem; padding: 1.25rem 1rem 3rem; }
+  .sheet-col { position: static; border-top: 1px solid var(--rule); padding-top: 1.25rem; }
+  .question-text { font-size: var(--t-body); }
+  .choices .option-explanation { margin-left: 0.9rem; }
   article { padding: 1rem; }
   article > header { margin: -1rem -1rem 1rem; padding: 0.75rem 1rem; }
   article > footer { margin: 1rem -1rem -1rem; padding: 0.75rem 1rem; }
