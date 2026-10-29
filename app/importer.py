@@ -9,14 +9,15 @@ from sqlmodel import Session, select
 
 from app.config import Settings
 from app.models import Course, Exam, Question, utcnow
-from app.schemas import QUESTION_MODELS, ExamFile, ExamFileError, QuestionIn, parse_exam
+from app.schemas import QUESTION_FIELDS, ExamFile, ExamFileError, QuestionIn, parse_exam
 
 logger = logging.getLogger(__name__)
 
 # Columns only some question types use; reset to the model default when a type doesn't set
 # them, so changing a question's type leaves no stale data behind.
-_FIELDS_PER_TYPE = [set(model.model_fields) for model in QUESTION_MODELS]
-_TYPE_SPECIFIC_FIELDS = set.union(*_FIELDS_PER_TYPE) - set.intersection(*_FIELDS_PER_TYPE)
+_TYPE_SPECIFIC_FIELDS = set.union(*QUESTION_FIELDS.values()) - set.intersection(
+    *QUESTION_FIELDS.values()
+)
 
 
 @dataclass

@@ -1,13 +1,15 @@
 from dataclasses import dataclass
+from urllib.parse import quote
 
 from fastapi import APIRouter, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, Response
 from sqlmodel import Session
 from starlette.concurrency import run_in_threadpool
 from starlette.datastructures import UploadFile
 
 from app.attempts import askable, open_attempt
 from app.db import SessionDep, get_or_404
+from app.exporter import export_exam
 from app.importer import ImportResult, comes_back_on_restart, import_exam
 from app.models import Exam
 from app.queries import finished_attempts
@@ -55,6 +57,17 @@ def exam_page(
 @router.get("/exams/{exam_id}", response_class=HTMLResponse)
 def exam_detail(request: Request, session: SessionDep, exam_id: int):
     return exam_page(request, session, get_or_404(session, Exam, exam_id))
+
+
+@router.get("/exams/{exam_id}/export")
+def export_exam_file(session: SessionDep, exam_id: int):
+    exam = get_or_404(session, Exam, exam_id)
+    filename = exam.source_file or f"{exam.title}.json"
+    return Response(
+        export_exam(exam),
+        media_type="application/json",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(filename)}"},
+    )
 
 
 @router.post("/exams/{exam_id}/delete")

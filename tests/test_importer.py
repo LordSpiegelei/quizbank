@@ -5,9 +5,11 @@ from dataclasses import replace
 from fastapi.testclient import TestClient
 from sqlmodel import Session, select
 
-from app.importer import import_directory
+from app.exporter import export_exam
+from app.importer import import_directory, import_exam
 from app.main import create_app
 from app.models import Answer, Attempt, Course, Exam, Question
+from app.schemas import parse_exam
 from tests.factories import EXAMPLE, import_file, open_q, single
 
 _import = import_file
@@ -106,3 +108,17 @@ def test_auto_import_on_startup(settings) -> None:
         app = create_app(replace(settings, auto_import=auto_import))
         with TestClient(app), Session(app.state.engine) as session:
             assert len(session.exec(select(Exam)).all()) == expected
+
+
+def test_export_roundtrip(session) -> None:
+    expected = parse_exam(EXAMPLE.read_bytes())
+    result = import_exam(session, expected, source_file="sample.json")
+    exam_row = session.get(Exam, result.exam_id)
+    exam_row.course.display_name = "Umbenannt"  # export keeps the import key
+    exam_row.questions[0].starred = True  # learning state is not exported
+    session.commit()
+
+    exported = export_exam(exam_row)
+    assert parse_exam(exported) == expected
+    assert '"points": 1,' in exported  # whole numbers without ".0"
+    assert import_exam(session, parse_exam(exported), source_file="sample.json").changed is False

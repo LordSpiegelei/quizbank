@@ -11,6 +11,7 @@ from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
+    PlainSerializer,
     ValidationError,
     ValidationInfo,
     field_validator,
@@ -22,6 +23,16 @@ SCHEMA_PATH = Path(__file__).resolve().parent.parent / "schema" / "exam.schema.j
 MIN_OPTIONS, MAX_OPTIONS = 2, 10
 
 NonEmptyStr = Annotated[str, Field(min_length=1)]
+
+
+def _compact_number(value: float) -> float | int:
+    return int(value) if value.is_integer() else value
+
+
+# Written as 1 rather than 1.0, so exported files read like hand-written ones.
+Points = Annotated[
+    float, PlainSerializer(_compact_number, return_type=float | int, when_used="json")
+]
 MultipleScoring = Literal["all_or_nothing", "partial"]
 
 
@@ -31,7 +42,7 @@ class _Strict(BaseModel):
 
 class RubricItem(_Strict):
     criterion: NonEmptyStr
-    points: float = Field(ge=0)
+    points: Points = Field(ge=0)
 
 
 # Cross-field checks below read earlier fields via `info.data`, so field order matters:
@@ -43,7 +54,7 @@ class _QuestionBase(_Strict):
     source: str | None = Field(default=None, description='E.g. "Foliensatz 2, Folie 14".')
     scenario: str | None = None
     question: NonEmptyStr
-    points: float = Field(default=1, gt=0)
+    points: Points = Field(default=1, gt=0)
     explanation: str | None = None
 
 
@@ -113,10 +124,15 @@ class OpenQuestion(_QuestionBase):
 
 
 QUESTION_MODELS = (SingleChoiceQuestion, MultipleChoiceQuestion, OpenQuestion)
+# Type tag -> its fields without `id`; the one place importer, snapshots and export look up.
+QUESTION_FIELDS: dict[str, set[str]] = {
+    get_args(model.model_fields["type"].annotation)[0]: set(model.model_fields) - {"id"}
+    for model in QUESTION_MODELS
+}
 QuestionIn = Annotated[
     SingleChoiceQuestion | MultipleChoiceQuestion | OpenQuestion, Field(discriminator="type")
 ]
-_QUESTION_TAGS = {get_args(m.model_fields["type"].annotation)[0] for m in QUESTION_MODELS}
+_QUESTION_TAGS = QUESTION_FIELDS.keys()
 
 
 class ExamFile(_Strict):
@@ -124,7 +140,7 @@ class ExamFile(_Strict):
     course: NonEmptyStr
     title: NonEmptyStr
     time_limit_minutes: int | None = Field(default=None, gt=0)
-    pass_mark: float | None = Field(default=None, ge=0)
+    pass_mark: Points | None = Field(default=None, ge=0)
     multiple_scoring: MultipleScoring = "all_or_nothing"
     questions: list[QuestionIn] = Field(min_length=1)
 

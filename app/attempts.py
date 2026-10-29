@@ -13,11 +13,11 @@ from sqlmodel import Session, col, select
 
 from app.models import Answer, Attempt, Exam, Question, utcnow
 from app.queries import live_questions
-from app.schemas import QUESTION_MODELS, MultipleScoring
+from app.schemas import QUESTION_FIELDS, MultipleScoring
 from app.scoring import AnswerScore, score_question, summarize, update_pool
 
 # Every content field of the import format (CLAUDE.md §6), so new fields are frozen too.
-SNAPSHOT_FIELDS = set().union(*(model.model_fields for model in QUESTION_MODELS)) - {"id"}
+SNAPSHOT_FIELDS = set().union(*QUESTION_FIELDS.values())
 
 Mode = Literal["exam", "practice", "retry_wrong"]
 Feedback = Literal["instant", "end"]

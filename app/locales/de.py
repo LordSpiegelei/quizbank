@@ -46,6 +46,7 @@ TEXTS: dict[str, str] = {
     "exam.delete_confirm": "Probeklausur „{title}“ mit allen Versuchen löschen?",
     "exam.reimport_hint": "Die Datei „{file}“ liegt noch im Fragen-Ordner – beim nächsten Start wird sie ohne Verlauf neu importiert.",
     "exam.start": "Klausur starten",
+    "exam.export": "Als JSON exportieren",
     "exam.open_attempt": "Angefangener Versuch vom {started}.",
     "exam.resume": "Fortsetzen",
     "exam.restart": "Verwerfen und neu starten",
