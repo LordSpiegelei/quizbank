@@ -22,6 +22,12 @@
   <article>
     <header>
       <small><span x-text="current.topic"></span> · <span x-text="current.points"></span> {{ t("quiz.points") }}</small>
+      <span class="flags" x-show="current.flags">
+        <template x-for="(on, flag) in current.flags || {}" :key="flag">
+          <button type="button" class="flag" :class="{ on }" :aria-pressed="on ? 'true' : 'false'"
+                  @click="setFlag(current, flag, !on)" x-text="texts[`flag.${flag}.${on ? 'on' : 'off'}`]"></button>
+        </template>
+      </span>
     </header>
     <div class="scenario" x-show="current.scenario" x-html="current.scenario"></div>
     <div x-html="current.question"></div>

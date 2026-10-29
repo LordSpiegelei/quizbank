@@ -1,19 +1,20 @@
+from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 from fastapi import Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
-from jinja2 import pass_context
 
+from app.learning import FLAGS
 from app.locales import Translator
 from app.markdown import render_markdown, render_markdown_inline
 
 TEMPLATE_DIR = Path(__file__).resolve().parent / "templates"
 
 
-def make_templates(t: Translator) -> Jinja2Templates:
+def make_templates(t: Translator, url_path_for: Callable[..., Any]) -> Jinja2Templates:
     templates = Jinja2Templates(directory=TEMPLATE_DIR)
     decimal_sep = t("format.decimal_sep")
     datetime_format = t("format.datetime")
@@ -33,13 +34,14 @@ def make_templates(t: Translator) -> Jinja2Templates:
         minutes, secs = divmod(rest, 60)
         return f"{hours}:{minutes:02}:{secs:02}" if hours else f"{minutes}:{secs:02}"
 
-    @pass_context
-    def path(context: dict[str, Any], name: str, **params: Any) -> str:
-        """Relative URL path of a named route (url_for would build absolute URLs)."""
-        return str(context["request"].app.url_path_for(name, **params))
+    def path(name: str, **params: Any) -> str:
+        """Relative URL path of a named route (url_for would build absolute URLs). Needs no
+        template context, so imported macros can use it too."""
+        return str(url_path_for(name, **params))
 
     templates.env.globals["t"] = t
     templates.env.globals["path"] = path
+    templates.env.globals["flags"] = FLAGS
     templates.env.filters["num"] = format_number
     templates.env.filters["dt"] = format_datetime
     templates.env.filters["duration"] = format_duration
@@ -51,6 +53,13 @@ def make_templates(t: Translator) -> Jinja2Templates:
 def redirect(request: Request, name: str, **params: Any) -> RedirectResponse:
     """303 See Other to a named route, the answer to a successful form POST."""
     return RedirectResponse(request.app.url_path_for(name, **params), status_code=303)
+
+
+def redirect_back(request: Request, next_url: str, fallback: str, **params: Any) -> Response:
+    """303 to the page a form came from; only local paths, otherwise to `fallback`."""
+    if next_url.startswith("/") and not next_url.startswith("//"):
+        return RedirectResponse(next_url, status_code=303)
+    return redirect(request, fallback, **params)
 
 
 def render(request: Request, name: str, status_code: int = 200, **context: Any) -> HTMLResponse:

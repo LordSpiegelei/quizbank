@@ -57,3 +57,10 @@ mark.status.wrong, mark.status.unanswered { background: var(--pico-del-color); c
 .question-grid button.partial { border-color: var(--pico-mark-background-color); }
 fieldset:disabled label.option { cursor: default; opacity: 1; }
 .feedback mark.status { margin-right: 0.5rem; }
+
+/* Star / disable toggles */
+.flags { display: inline-flex; gap: 0.5rem; flex-wrap: wrap; vertical-align: middle; }
+.flags form { margin: 0; }
+button.flag { padding: 0.15rem 0.6rem; margin: 0; font-size: 0.85em; --pico-background-color: transparent; --pico-color: var(--pico-muted-color); --pico-border-color: var(--pico-muted-border-color); }
+button.flag.on { --pico-color: var(--pico-primary); --pico-border-color: var(--pico-primary); }
+tr.disabled td:not(:last-child) { opacity: 0.55; }

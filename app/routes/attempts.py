@@ -19,8 +19,10 @@ from app.attempts import (
     start_attempt,
 )
 from app.db import SessionDep, get_or_404
+from app.learning import FLAGS
 from app.markdown import render_markdown, render_markdown_inline
-from app.models import Answer, Attempt, Exam, utcnow
+from app.models import Answer, Attempt, Exam, Question, utcnow
+from app.queries import live_questions
 from app.routes.exams import exam_page
 from app.templating import redirect, render
 
@@ -28,6 +30,7 @@ router = APIRouter()
 
 # Texts the Alpine runner needs; everything else is rendered server-side.
 QUIZ_TEXT_KEYS = (
+    *(f"flag.{flag}.{state}" for flag in FLAGS for state in ("on", "off")),
     "quiz.saving",
     "quiz.saved",
     "quiz.save_failed",
@@ -78,11 +81,27 @@ def _solution(request: Request, attempt: Attempt, answer: Answer) -> dict[str, A
     }
 
 
-def _client_question(request: Request, attempt: Attempt, answer: Answer) -> dict[str, Any]:
+def _flags(request: Request, question: Question | None) -> dict[str, Any]:
+    """Star/disable state and where to set it; empty once the question left the exam file."""
+    if question is None:
+        return {"flags": None, "flagUrls": None}
+    url = request.app.url_path_for
+    return {
+        "flags": {flag: getattr(question, flag) for flag in FLAGS},
+        "flagUrls": {
+            flag: str(url("set_flag_api", question_id=question.id, flag=flag)) for flag in FLAGS
+        },
+    }
+
+
+def _client_question(
+    request: Request, attempt: Attempt, answer: Answer, question: Question | None
+) -> dict[str, Any]:
     """What the runner may see: solutions only for answers already revealed."""
     snap = answer.snapshot
     params = {"attempt_id": answer.attempt_id, "answer_id": answer.id}
     return {
+        **_flags(request, question),
         "id": answer.id,
         "url": str(request.app.url_path_for("save_answer_api", **params)),
         "revealUrl": str(request.app.url_path_for("reveal_answer_api", **params)),
@@ -108,11 +127,15 @@ def attempt_page(request: Request, session: SessionDep, attempt_id: int):
     if attempt.deadline is not None:
         remaining = int((attempt.deadline - now).total_seconds())
     t = request.app.state.t
+    live = live_questions(session, attempt)
     quiz = {
         "feedback": attempt.feedback,
         "remaining": remaining,
         "elapsed": int((now - attempt.started_at).total_seconds()),
-        "questions": [_client_question(request, attempt, answer) for answer in attempt.answers],
+        "questions": [
+            _client_question(request, attempt, answer, live.get(answer.question_id))
+            for answer in attempt.answers
+        ],
         "texts": {key: t(key) for key in QUIZ_TEXT_KEYS},
     }
     return render(request, "attempt.html", attempt=attempt, quiz=quiz)
@@ -169,7 +192,12 @@ def attempt_review(request: Request, session: SessionDep, attempt_id: int):
     if attempt.finished_at is None:
         return redirect(request, "attempt_page", attempt_id=attempt.id)
     return render(
-        request, "review.html", attempt=attempt, exam=attempt.exam, items=review_items(attempt)
+        request,
+        "review.html",
+        attempt=attempt,
+        exam=attempt.exam,
+        items=review_items(attempt),
+        questions=live_questions(session, attempt),
     )
 
 

@@ -177,7 +177,7 @@ Eine Datei = eine Probeklausur. Schema wird als Pydantic-Modell implementiert un
 - [x] Start-Dialog auf der Exam-Seite: Klausur oder Übung, **Filter nach Thema/Tags**, Fragenanzahl (Übung ohne Countdown, siehe §6)
 - [x] Zwei Feedback-Modi: **Sofort-Feedback** nach jeder Frage („Prüfen"-Button) oder **Auswertung erst am Ende**
 - [x] **Falsch-Pool pro Quiz** wiederholen (siehe §6), Pool-Liste auf der Exam-Seite (Wiederholen bietet Feedback-Modus, Anzahl und Mischen, keine Themenfilter)
-- [ ] Fragen **markieren** (Stern) und **deaktivieren**; beim Start filtern: alle / nur markierte / ohne deaktivierte; „Lernstand zurücksetzen" in den Einstellungen
+- [x] Fragen **markieren** (Stern) und **deaktivieren** (im Quiz, in der Auswertung und in der Fragenliste der Exam-Seite); Übung: „nur markierte" (deaktivierte fallen immer weg); „Lernstand zurücksetzen" pro Exam und global (Kursliste), „Verlauf löschen" pro Exam
 - [x] Fragen und Antwortoptionen zufällig mischen
 - [ ] **Export** eines Quiz zurück nach JSON
 - [ ] **Tastatursteuerung** (1–5 bzw. A–E zum Auswählen, Enter = weiter, ←/→ navigieren, S = markieren)
@@ -284,6 +284,7 @@ quizbank/
 - [x] Timer → Server-Deadline, läuft weiter, lazy Auto-Abgabe
 - [x] „Falsche wiederholen" → persistenter **Falsch-Pool pro Exam** (raus nach 2× richtig in Folge) statt „letzte N Versuche"
 - [x] Selbstbewertung `open` → pro Raster-Kriterium (`rubric_scores`)
+- [ ] Redesign der UI (später, nach den Funktionen): u. a. Stern-/Deaktivieren-Buttons klarer unterscheidbar machen („Deaktivieren" vs. „Deaktiviert" zu ähnlich)
 
 ## graphify
 

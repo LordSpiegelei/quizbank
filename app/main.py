@@ -12,7 +12,7 @@ from app.config import Settings
 from app.db import make_engine, run_migrations
 from app.importer import import_directory
 from app.locales import get_translator
-from app.routes import attempts, courses, exams
+from app.routes import attempts, courses, exams, questions
 from app.templating import make_templates
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
@@ -40,11 +40,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app = FastAPI(title="quizbank", lifespan=lifespan)
     app.state.settings = settings
     app.state.t = get_translator(settings.app_lang)
-    app.state.templates = make_templates(app.state.t)
+    app.state.templates = make_templates(app.state.t, app.url_path_for)
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
     app.include_router(courses.router)
     app.include_router(exams.router)
     app.include_router(attempts.router)
+    app.include_router(questions.router)
 
     @app.get("/health")
     def health() -> dict[str, str]:

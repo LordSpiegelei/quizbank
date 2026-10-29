@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_macros.html" import attempt_result, confirm_form, pass_mark, time_limit %}
+{% from "_macros.html" import attempt_result, confirm_form, flag_forms, pass_mark, time_limit %}
 {% block title %}{{ exam.title }} – {{ super() }}{% endblock %}
 {% macro shuffle_fields() -%}
   <fieldset>
@@ -78,6 +78,9 @@
         {{ feedback_fields() }}
         {{ choice_fields("topics", t("exam.topics"), topics) }}
         {{ choice_fields("tags", t("start.tags"), tags) }}
+        {% if starred_count %}
+        <label><input type="checkbox" name="starred_only" value="true"> {{ t("start.starred_only", n=starred_count) }}</label>
+        {% endif %}
         {{ count_field(question_count) }}
         {{ shuffle_fields() }}
         <button type="submit">{{ t("start.practice_submit") }}</button>
@@ -99,6 +102,26 @@
   </div>
   {% endif %}
 </section>
+
+<details>
+  <summary>{{ t("questions.title", n=question_count) }}</summary>
+  <p><small>{{ t("questions.hint") }}</small></p>
+  <div class="overflow-auto">
+  <table class="striped">
+    <thead><tr><th class="num">#</th><th>{{ t("quiz.question") }}</th><th>{{ t("pool.topic") }}</th><th></th></tr></thead>
+    <tbody>
+      {% for q in questions %}
+      <tr id="question-{{ q.id }}" class="{{ 'disabled' if q.disabled }}">
+        <td class="num">{{ loop.index }}</td>
+        <td>{{ q.question | md_inline }}</td>
+        <td>{{ q.topic }}</td>
+        <td>{{ flag_forms(q, path('exam_detail', exam_id=exam.id) ~ '#question-' ~ q.id) }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</details>
 
 {% if pool %}
 <details>
@@ -158,5 +181,9 @@
 {% endif %}
 
 <hr>
+<div class="actions">
+  {{ confirm_form(path('reset_exam_learning', exam_id=exam.id), t("learning.reset"), t("learning.reset_confirm"), "secondary outline") }}
+  {% if history %}{{ confirm_form(path('delete_exam_history', exam_id=exam.id), t("history.delete_all"), t("history.delete_all_confirm")) }}{% endif %}
+</div>
 {{ confirm_form(path('delete_exam', exam_id=exam.id), t("exam.delete"), delete_confirm) }}
 {% endblock %}

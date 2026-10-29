@@ -12,8 +12,9 @@ from pydantic import BaseModel, BeforeValidator, PositiveInt, model_validator
 from sqlmodel import Session, col, select
 
 from app.models import Answer, Attempt, Exam, Question, utcnow
+from app.queries import live_questions
 from app.schemas import QUESTION_MODELS, MultipleScoring
-from app.scoring import POOL_OUT, AnswerScore, score_question, summarize, update_pool
+from app.scoring import AnswerScore, score_question, summarize, update_pool
 
 # Every content field of the import format (CLAUDE.md §6), so new fields are frozen too.
 SNAPSHOT_FIELDS = set().union(*(model.model_fields for model in QUESTION_MODELS)) - {"id"}
@@ -41,9 +42,10 @@ def _blank_to_none(value: Any) -> Any:
 
 
 # Settings a mode overrides because they don't apply to it.
+_NO_FILTERS = {"topics": [], "tags": [], "starred_only": False}
 _MODE_OVERRIDES: dict[str, dict[str, Any]] = {
-    "exam": {"feedback": "end", "topics": [], "tags": [], "count": None},  # asks everything
-    "retry_wrong": {"topics": [], "tags": []},  # the pool decides which questions come up
+    "exam": _NO_FILTERS | {"feedback": "end", "count": None},  # asks everything
+    "retry_wrong": _NO_FILTERS,  # the pool decides which questions come up
 }
 
 
@@ -55,6 +57,7 @@ class StartOptions(BaseModel):
     feedback: Feedback = "end"
     topics: list[str] = []
     tags: list[str] = []
+    starred_only: bool = False
     count: Annotated[PositiveInt | None, BeforeValidator(_blank_to_none)] = None
     shuffle_questions: bool = False
     shuffle_options: bool = False
@@ -99,6 +102,7 @@ def pick_questions(
         q
         for q in questions
         if askable(q, options.mode)
+        and (not options.starred_only or q.starred)
         and (not topics or q.topic in topics)
         and (not tags or tags.intersection(q.tags))
     ]
@@ -239,11 +243,7 @@ def finish(session: Session, attempt: Attempt, now: datetime | None = None) -> N
     if attempt.deadline is not None:
         end = min(end, attempt.deadline)
 
-    # Live questions (for the wrong pool) in one query instead of one per answer.
-    question_ids = [a.question_id for a in attempt.answers if a.question_id is not None]
-    questions = {
-        q.id: q for q in session.exec(select(Question).where(col(Question.id).in_(question_ids)))
-    }
+    questions = live_questions(session, attempt)  # for the wrong pool
 
     results = []
     for answer in attempt.answers:
@@ -326,9 +326,3 @@ def reveal(session: Session, attempt: Attempt, answer: Answer, now: datetime | N
     if not answer.revealed:
         answer.revealed = True
         session.commit()
-
-
-def remove_from_pool(session: Session, question: Question) -> None:
-    """Manual "aus Pool entfernen": counts as learned, the streak starts over."""
-    question.in_wrong_pool, question.pool_streak = POOL_OUT
-    session.commit()

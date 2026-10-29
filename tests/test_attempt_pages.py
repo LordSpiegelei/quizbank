@@ -36,6 +36,8 @@ def test_runner_page_hides_solutions(client) -> None:
     quiz = _quiz_data(page)
     question = quiz["questions"][0]
     assert set(question) == {
+        "flags",
+        "flagUrls",
         "id",
         "url",
         "revealUrl",
@@ -178,6 +180,7 @@ def test_start_form_fields(client) -> None:
         assert attempt.filter == {
             "topics": [],
             "tags": ["t", "x"],
+            "starred_only": False,
             "count": None,  # an empty field means all
             "shuffle_questions": False,
             "shuffle_options": True,
@@ -214,3 +217,57 @@ def test_wrong_pool_retry_and_removal(client) -> None:
     response = client.post(f"/questions/{question_id}/pool/remove", follow_redirects=False)
     assert response.headers["location"] == f"/exams/{exam_id}"
     assert "Falsch-Pool (1)" in client.get(f"/exams/{exam_id}").text
+
+
+def test_star_and_disable_toggles(client) -> None:
+    exam_id = _setup(client, single(), single(id="q2"))
+    with db(client) as session:
+        q1, q2 = (q.id for q in session.get(Exam, exam_id).questions)
+
+    # Plain form from the exam page: redirects back to the given local path.
+    response = client.post(
+        f"/questions/{q1}/flags/starred",
+        data={"value": "true", "next": f"/exams/{exam_id}#question-{q1}"},
+        follow_redirects=False,
+    )
+    assert response.headers["location"] == f"/exams/{exam_id}#question-{q1}"
+    response = client.post(
+        f"/questions/{q1}/flags/disabled",
+        data={"value": "true", "next": "//evil.example"},
+        follow_redirects=False,
+    )
+    assert response.headers["location"] == f"/exams/{exam_id}"
+    page = client.get(f"/exams/{exam_id}").text
+    assert "★ Markiert" in page
+    assert "Nur markierte Fragen (1)" in page
+
+    # The runner sets flags through the JSON API.
+    attempt_id = _start(client, exam_id)
+    question = _quiz_data(client.get(f"/attempts/{attempt_id}").text)["questions"][1]
+    assert question["flags"] == {"starred": False, "disabled": False}
+    response = client.post(question["flagUrls"]["starred"], json={"value": True})
+    assert response.json() == {"starred": True}
+    assert client.post(f"/api/questions/{q2}/flags/foo", json={"value": True}).status_code == 422
+
+    client.post(f"/attempts/{attempt_id}/finish")
+    assert "★ Markiert" in client.get(f"/attempts/{attempt_id}/review").text
+
+
+def test_resets(client) -> None:
+    exam_id = _setup(client, single())
+    attempt_id = _start(client, exam_id)
+    client.post(f"/attempts/{attempt_id}/finish")
+    with db(client) as session:
+        question_id = session.get(Exam, exam_id).questions[0].id
+    client.post(f"/questions/{question_id}/flags/starred", data={"value": "true"})
+
+    response = client.post(f"/exams/{exam_id}/history/delete", follow_redirects=False)
+    assert response.headers["location"] == f"/exams/{exam_id}"
+    client.post(f"/exams/{exam_id}/learning/reset")
+    with db(client) as session:
+        assert session.exec(select(Attempt)).all() == []
+        question = session.get(Exam, exam_id).questions[0]
+        assert (question.starred, question.in_wrong_pool) == (False, False)
+
+    response = client.post("/learning/reset", follow_redirects=False)
+    assert response.headers["location"] == "/"
