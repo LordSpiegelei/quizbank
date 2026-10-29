@@ -10,6 +10,7 @@ TEXTS: dict[str, str] = {
     "common.save": "Speichern",
     "common.minutes": "{n} Min.",
     "common.points": "{n} Punkte",
+    "common.points.one": "{n} Punkt",
     "common.none": "–",
     "format.decimal_sep": ",",
     "format.datetime": "%d.%m.%Y %H:%M",
@@ -126,7 +127,6 @@ TEXTS: dict[str, str] = {
     # Quiz runner
     "quiz.question": "Frage",
     "quiz.of": "von",
-    "quiz.points": "Punkte",
     "quiz.time_left": "Restzeit",
     "quiz.elapsed": "Zeit",
     "quiz.check": "Prüfen",
@@ -146,6 +146,7 @@ TEXTS: dict[str, str] = {
     "quiz.save_failed": "Speichern fehlgeschlagen – bitte erneut versuchen.",
     "quiz.finish_confirm": "Klausur jetzt abgeben?",
     "quiz.finish_confirm_unanswered": "Noch {n} Fragen unbeantwortet. Trotzdem abgeben?",
+    "quiz.finish_confirm_unanswered.one": "Noch 1 Frage unbeantwortet. Trotzdem abgeben?",
     "quiz.no_js": "Für die Klausur wird JavaScript benötigt.",
     "quiz.keys_options": "Tastatur: 1–{n} oder A–{letter} wählen",
     "quiz.keys": "Enter prüfen/weiter · ←/→ blättern · S markieren",
@@ -166,7 +167,8 @@ TEXTS: dict[str, str] = {
     "case.copy": "Text kopieren",
     "case.copied": "Kopiert ✓",
     "case.prompt": "Bewerte meine Antwort auf die folgende Aufgabe anhand des Bewertungsrasters. Nenne pro Kriterium die Punkte mit kurzer Begründung und am Ende die Gesamtpunktzahl.",
-    "case.task": "Aufgabe ({points} Punkte)",
+    "case.task": "Aufgabe ({n} Punkte)",
+    "case.task.one": "Aufgabe ({n} Punkt)",
     # Review
     "review.title": "Auswertung",
     "review.finished_at": "Abgegeben",

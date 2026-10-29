@@ -7,7 +7,7 @@ A self-hosted web app for practising mock exams. You bring your own question ban
 
 ![Exam page with start dialog and statistics](docs/screenshots/exam.png)
 
-> The user interface is currently in **German**. All texts live in [`app/locales/de.py`](app/locales/de.py), so an English locale can be added without touching templates.
+> The user interface is in **English** by default; set `APP_LANG=de` for German. All texts live in [`app/locales/`](app/locales/), so another language is one more module with the same keys.
 
 ## Features
 
@@ -116,7 +116,7 @@ Text fields support **Markdown** (code, tables, emphasis). Math formulas are sho
 | `QUESTIONS_DIR` | `./questions` / `/questions` | Folder that is imported on start |
 | `AUTO_IMPORT` | `true` | Set to `false` to skip the import on start |
 | `PORT` | `8000` | Port inside the container |
-| `APP_LANG` | `de` | UI language (a module in `app/locales/`) |
+| `APP_LANG` | `en` | UI language: `en` or `de` (a module in `app/locales/`) |
 
 Database migrations run automatically on start. To back up, copy `data/quizbank.db` while the app is stopped.
 

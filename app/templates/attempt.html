@@ -34,7 +34,7 @@
       <noscript><p class="notice error">{{ t("quiz.no_js") }}</p></noscript>
       <div class="q-head">
         <span class="q-pos">{{ t("quiz.question") }} <span x-text="pos + 1"></span> {{ t("quiz.of") }} <span x-text="questions.length"></span></span>
-        <span class="muted"><span x-text="current.topic"></span>, <span x-text="current.points"></span> {{ t("quiz.points") }}</span>
+        <span class="muted"><span x-text="current.topic"></span>, <span x-text="fmt('common.points', { n: current.points })"></span></span>
         <span class="q-tools">
           {# Same symbols and actions as question_state / question_menu, bound to the current question. #}
           {% for flag in flags %}
@@ -89,7 +89,7 @@
         <section class="feedback">
           <p class="feedback-head">
             <mark class="status" :class="current.solution.status" x-text="current.solution.status_label"></mark>
-            <span><span x-text="current.solution.score"></span> / <span x-text="current.points"></span> {{ t("quiz.points") }}</span>
+            <span><span x-text="current.solution.score"></span> / <span x-text="fmt('common.points', { n: current.points })"></span></span>
           </p>
           <template x-if="current.solution.model_answer">
             <div><h4>{{ t("review.model_answer") }}</h4><div x-html="current.solution.model_answer"></div></div>
@@ -98,7 +98,7 @@
             <div>
               <h4>{{ t("review.rubric") }}</h4>
               <ul><template x-for="row in current.solution.rubric">
-                <li><span x-text="row.criterion"></span> (<span x-text="row.points"></span> {{ t("quiz.points") }})</li>
+                <li><span x-text="row.criterion"></span> (<span x-text="fmt('common.points', { n: row.points })"></span>)</li>
               </template></ul>
             </div>
           </template>

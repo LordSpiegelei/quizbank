@@ -41,6 +41,7 @@ QUIZ_TEXT_KEYS = (
     "quiz.keys",
     "quiz.keys_options",
     "quiz.answered_of",
+    "common.points",
 )
 
 
@@ -140,7 +141,8 @@ def attempt_page(request: Request, session: SessionDep, attempt_id: int):
             _client_question(request, attempt, answer, live.get(answer.question_id))
             for answer in attempt.answers
         ],
-        "texts": {key: t(key) for key in QUIZ_TEXT_KEYS},
+        # with each key's singular variant, if it has one (t returns a missing key as is)
+        "texts": {k: t(k) for key in QUIZ_TEXT_KEYS for k in (key, f"{key}.one") if t(k) != k},
     }
     return render(request, "attempt.html", attempt=attempt, quiz=quiz)
 

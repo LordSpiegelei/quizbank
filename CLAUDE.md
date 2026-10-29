@@ -23,7 +23,7 @@ Die App soll später **öffentlich auf GitHub geteilt** werden. Andere bringen i
 
 - Keine KI-Korrektur in der App (Freitexte werden mit Musterlösung verglichen oder separat im Claude-Chat bewertet)
 - Kein MCP-Server, keine CLI
-- Keine Mehrsprachigkeit: UI auf **Deutsch** (Texte zentral halten, damit Übersetzung später möglich bleibt)
+- Keine Sprachumschaltung zur Laufzeit: die UI-Sprache ist pro Instanz fest (`APP_LANG`, Default **Englisch**, Deutsch verfügbar)
 - Keine Benutzerverwaltung / kein Login (Single-User, lokal). Wer mehrere Nutzer braucht, startet mehrere Instanzen mit eigenem `./data`
 - Kein Einlesen von PDFs – nur strukturiertes JSON
 
@@ -57,7 +57,7 @@ Die App soll später **öffentlich auf GitHub geteilt** werden. Andere bringen i
 ### Generik-Prinzipien
 - Nichts kursspezifisch im Code: Optionsanzahl variabel (**2–10**), Tastenkürzel passen sich an (1–9/A–J)
 - **Auto-Import**: alle `*.json` in `QUESTIONS_DIR` (Default `./questions`) werden beim Start importiert (idempotent); abschaltbar über `AUTO_IMPORT=false`
-- UI-Texte in `app/locales/de.py` (Dict mit Keys); Sprache über Env `APP_LANG` (Default `de`), damit `en.py` später einfach ergänzt werden kann
+- UI-Texte in `app/locales/en.py` und `de.py` (Dict mit gleichen Keys, Test prüft Keys und Platzhalter); Sprache über Env `APP_LANG` (Default `en`). Weitere Sprache = weiteres Modul
 
 ### Befehle
 ```bash
@@ -225,7 +225,7 @@ quizbank/
 │   ├── schemas.py         # Pydantic-Importformat
 │   ├── importer.py        # JSON → DB
 │   ├── scoring.py         # Auswertungslogik (rein, gut testbar)
-│   ├── locales/de.py      # UI-Texte
+│   ├── locales/           # UI-Texte: en.py (Default), de.py
 │   ├── routes/
 │   │   ├── courses.py
 │   │   ├── exams.py
@@ -242,13 +242,13 @@ quizbank/
 
 ## 9. Konventionen
 
-- **UI-Texte auf Deutsch**, zentral in `app/locales/de.py`, nicht verstreut in Templates
+- **UI-Texte** zentral in `app/locales/` (neue Keys immer in `en.py` und `de.py`), nicht verstreut in Templates; Tests laufen mit `APP_LANG=de`
 - Code, Bezeichner und Commits auf Englisch; README zweisprachig oder Englisch (für das Teilen)
 - Conventional Commits (`feat:`, `fix:`, `docs:` …)
 - Bewertungslogik in `scoring.py` als reine Funktionen, mit Unit-Tests
 - Nach jedem abgeschlossenen Feature bzw. größeren Code-Änderung den Skill `/simplify` auf die Änderungen ausführen (vor dem Commit), danach Tests und ruff erneut laufen lassen
 - Keine Fragen zu kopiergeschützten Kursmaterialien committen: **`questions/` und `data/` stehen in `.gitignore`**
-- Konfiguration über Umgebungsvariablen: `DB_PATH` (Default `./data/quizbank.db`), `PORT` (Default `8000`), `QUESTIONS_DIR` (Default `./questions`), `AUTO_IMPORT` (Default `true`), `APP_LANG` (Default `de`)
+- Konfiguration über Umgebungsvariablen: `DB_PATH` (Default `./data/quizbank.db`), `PORT` (Default `8000`), `QUESTIONS_DIR` (Default `./questions`), `AUTO_IMPORT` (Default `true`), `APP_LANG` (Default `en`)
 
 ## 10. Bewertungsregeln
 
@@ -277,7 +277,7 @@ quizbank/
 - [x] Teilpunkte bei `multiple` → Feld `multiple_scoring` pro Klausur im JSON
 - [x] Fortschritt laufender Versuche → **ja**, jede Antwort wird sofort gespeichert; unfertige Versuche können fortgesetzt werden
 - [x] Historie → **alle** Versuche behalten, manuelles Löschen möglich
-- [x] Sprache → Deutsch jetzt, Struktur EN-fähig (`app/locales/`)
+- [x] Sprache → Englisch als Default, Deutsch über `APP_LANG=de` (`app/locales/`)
 - [x] Migrationen → Alembic ab Start
 - [x] Re-Import vs. Historie → **eingefroren**: jeder Versuch speichert Snapshots seiner Fragen (§6)
 - [x] Datei vs. UI → **Dateien gewinnen**; Kurs-Umbenennung nur über `display_name`

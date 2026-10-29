@@ -2,7 +2,7 @@
     (no AI grading inside the app). Plain text; autoescaping is right inside <textarea>. -#}
 {{ t("case.prompt") }}
 
-## {{ t("case.task", points=q.points | num) }}
+## {{ t("case.task", n=q.points | num) }}
 {%- if q.scenario %}
 
 {{ q.scenario }}
