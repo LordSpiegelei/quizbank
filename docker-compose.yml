@@ -1,7 +1,7 @@
 services:
   quizbank:
     build: .
-    image: ghcr.io/lordspiegelei/quizbank:latest
+    image: quizbank:local
     # Bound to localhost only: the app has no login.
     ports:
       - "127.0.0.1:8000:8000"
