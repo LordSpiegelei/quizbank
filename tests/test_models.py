@@ -7,11 +7,11 @@ from app.models import Answer, Attempt, Course, Exam, Question
 
 
 def _seed(session) -> Exam:
-    course = Course(name="Einführung in die BWL", default_pass_mark=30)
+    course = Course(name="Example Course", default_pass_mark=30)
     exam = Exam(course=course, title="Probeklausur 1", time_limit_minutes=120)
     question = Question(
         exam=exam,
-        external_id="ebwl-p1-001",
+        external_id="ex-p1-001",
         type="single",
         topic="Strategie",
         tags=["Porter"],
@@ -61,9 +61,7 @@ def test_database_level_cascade(session) -> None:
 def test_external_id_unique_per_exam(session) -> None:
     exam = _seed(session)
     session.add(
-        Question(
-            exam_id=exam.id, external_id="ebwl-p1-001", type="single", topic="x", question="dup"
-        )
+        Question(exam_id=exam.id, external_id="ex-p1-001", type="single", topic="x", question="dup")
     )
     with pytest.raises(IntegrityError):
         session.commit()

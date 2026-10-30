@@ -20,6 +20,8 @@ A self-hosted web app for practising mock exams. You bring your own question ban
 - **Shuffling** of questions and options, **keyboard shortcuts** (1–9 / A–J, Enter, ←/→, S) and a **light/dark** switch.
 - **JSON import and export:** importing again is safe (questions are matched by `id`), and the export reproduces the file.
 
+See [ROADMAP.md](ROADMAP.md) for what's planned and what isn't.
+
 | Practice with instant feedback | Review after submitting |
 |---|---|
 | ![Quiz page with instant feedback](docs/screenshots/quiz.png) | ![Review page](docs/screenshots/review.png) |
@@ -138,6 +140,14 @@ The stack is FastAPI, SQLModel/SQLite with Alembic migrations, Jinja2 templates,
 ## Releases
 
 Pushing a tag `vX.Y.Z` builds the image for amd64 and arm64 and publishes it to `ghcr.io/lordspiegelei/quizbank` with the tags `X.Y.Z`, `X.Y` and `latest`.
+
+## Third-party assets
+
+The front-end assets in `app/static/` are vendored under their own licenses:
+
+- [Alpine.js](https://github.com/alpinejs/alpine) – MIT
+- [Lucide](https://lucide.dev) icons – ISC (notice in `app/static/icons.svg`)
+- [Atkinson Hyperlegible Next/Mono](https://www.brailleinstitute.org/freefont/) fonts – SIL Open Font License 1.1 (`app/static/vendor/fonts/OFL.txt`)
 
 ## License
 

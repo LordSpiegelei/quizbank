@@ -16,8 +16,9 @@ data/*
 questions/*
 !questions/.gitkeep
 
-# graphify knowledge graph (generated)
-graphify-out/
+# Claude Code (personal)
+.claude/settings.local.json
+.claude/skills/
 
 # Env / editors / OS
 .env
