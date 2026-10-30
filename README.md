@@ -141,6 +141,14 @@ The stack is FastAPI, SQLModel/SQLite with Alembic migrations, Jinja2 templates,
 
 Pushing a tag `vX.Y.Z` builds the image for amd64 and arm64 and publishes it to `ghcr.io/lordspiegelei/quizbank` with the tags `X.Y.Z`, `X.Y` and `latest`.
 
+## Third-party assets
+
+The front-end assets in `app/static/` are vendored under their own licenses:
+
+- [Alpine.js](https://github.com/alpinejs/alpine) – MIT
+- [Lucide](https://lucide.dev) icons – ISC (notice in `app/static/icons.svg`)
+- [Atkinson Hyperlegible Next/Mono](https://www.brailleinstitute.org/freefont/) fonts – SIL Open Font License 1.1 (`app/static/vendor/fonts/OFL.txt`)
+
 ## License
 
 [MIT](LICENSE)
