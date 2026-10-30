@@ -20,6 +20,8 @@ A self-hosted web app for practising mock exams. You bring your own question ban
 - **Shuffling** of questions and options, **keyboard shortcuts** (1–9 / A–J, Enter, ←/→, S) and a **light/dark** switch.
 - **JSON import and export:** importing again is safe (questions are matched by `id`), and the export reproduces the file.
 
+See [ROADMAP.md](ROADMAP.md) for what's planned and what isn't.
+
 | Practice with instant feedback | Review after submitting |
 |---|---|
 | ![Quiz page with instant feedback](docs/screenshots/quiz.png) | ![Review page](docs/screenshots/review.png) |
