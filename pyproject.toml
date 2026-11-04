@@ -11,7 +11,7 @@ dependencies = [
     "jinja2>=3.1.6",
     "markdown-it-py>=4.2.0",
     "nh3>=0.3.7",
-    "python-multipart>=0.0.32",
+    "python-multipart>=0.0.33",
     "sqlmodel>=0.0.48",
     "uvicorn[standard]>=0.54.0",
 ]
@@ -20,8 +20,8 @@ dependencies = [
 dev = [
     "httpx2>=2.16.0",
     "pre-commit>=3.7",
-    "pytest>=8.0",
-    "ruff>=0.17.2",
+    "pytest>=9.2.0",
+    "ruff>=0.17.3",
 ]
 
 [tool.uv]
