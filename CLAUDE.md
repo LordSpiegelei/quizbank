@@ -66,9 +66,12 @@ quizbank/
 │   ├── exporter.py        # DB → JSON
 │   ├── scoring.py         # pure scoring functions
 │   ├── attempts.py, learning.py, stats.py, queries.py, forms.py
+│   ├── llm.py, prompts.py # optional LLM client, prompt rendering (templates/llm/*.txt)
+│   ├── review.py          # AI review of answers that need review (suggestion only)
+│   ├── builder.py, jobs.py # exam builder: material checks, batch generation; worker thread
 │   ├── markdown.py, templating.py
 │   ├── locales/           # UI texts: en.py (default), de.py
-│   ├── routes/            # courses, exams, attempts, questions
+│   ├── routes/            # courses, exams, attempts, questions, builder (only with LLM)
 │   ├── templates/         # Jinja2
 │   └── static/            # app.css, icons.svg, shell.js (theme, menus, form helpers), quiz.js (Alpine), vendor/
 ├── migrations/            # Alembic
@@ -150,6 +153,8 @@ Rules:
   - `snapshot` = frozen question **in display order** (options shuffled, `correct`/`option_explanations` remapped). `selected` always refers to the snapshot. Review and statistics read only the snapshot, so re-imports never change history
   - `question_id` links to the live question (star, pool, retry); `None` once the question was removed from its file
   - `self_score` = sum of `rubric_scores` (entered directly when there is no rubric)
+  - `ai_feedback`, `ai_scores`, `ai_model`, `ai_reviewed_at`: the optional LLM's suggestion for a question that `needs_review` (today `open`). Never counts as the score; saving the self-assessment does
+- `GenerationJob` (exam builder draft): `params`, `model`, `material_text`, `images` (files in `drafts/<id>/` beside the DB), `status` [`queued` | `running` | `done` | `failed` | `cancelled`], `progress`/`total`, `draft` (exam-file JSON that grows per batch), `errors`, `regenerating`. Only an explicit import creates an `Exam` (`source_file = None`); uploaded files are not kept, only their extracted text
 
 ### Attempts
 - **Exam mode**: always **all** questions (ignores `disabled`), `feedback = end`. `disabled` and filters only apply to practice and retry

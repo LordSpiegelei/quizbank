@@ -1,5 +1,7 @@
 # Generating a mock exam with Claude
 
+> With a local LLM you can also generate exams inside quizbank (**Build with AI**, see the README). This page is for chat assistants such as Claude.
+
 This prompt asks Claude for an exam file that quizbank can import directly.
 
 **How to use it:**

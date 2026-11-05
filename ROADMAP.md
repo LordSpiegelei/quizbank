@@ -14,9 +14,9 @@
 - Keyboard control, light/dark theme, English and German UI
 - Docker image for amd64 and arm64 on GHCR
 
-## In progress
+## Unreleased
 
-- Optional local-LLM support (Ollama or any OpenAI-compatible server): AI review of open answers as a suggestion for the self-assessment, and an exam builder in the web UI
+- Optional local LLM (Ollama or any OpenAI-compatible server): AI review of open answers as a suggestion for the self-assessment, and an exam builder in the web UI
 
 ## Ideas
 
