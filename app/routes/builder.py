@@ -6,7 +6,7 @@ from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse
-from pydantic import TypeAdapter, ValidationError
+from pydantic import ValidationError
 from sqlmodel import Session, col, select
 from starlette.concurrency import run_in_threadpool
 from starlette.datastructures import UploadFile
@@ -16,6 +16,9 @@ from app.builder import (
     MaterialError,
     accepted_extensions,
     check_context,
+    plan_slots,
+    plan_types,
+    question_adapter,
     read_material,
 )
 from app.db import SessionDep, get_or_404
@@ -28,7 +31,6 @@ from app.schemas import (
     MAX_OPTIONS,
     MIN_OPTIONS,
     ExamFileError,
-    QuestionIn,
     format_validation_error,
     parse_exam,
 )
@@ -36,7 +38,6 @@ from app.templating import redirect, render
 
 router = APIRouter()
 LlmDep = Annotated[LLMClient, Depends(get_llm)]
-_question_adapter = TypeAdapter(QuestionIn)
 
 DEFAULT_FORM = {"single": "10", "multiple": "0", "open": "0", "options": "4"}
 
@@ -151,6 +152,7 @@ def _parse_params(session: Session, form: dict[str, str]) -> dict[str, Any]:
         if scoring in ("all_or_nothing", "partial")
         else "all_or_nothing",
         "instructions": form["instructions"].strip(),
+        "plan": plan_slots(plan_types(single, multiple, open_)),
     }
 
 
@@ -351,7 +353,7 @@ def question_edit(
         data = json.loads(text)
         if not isinstance(data, dict):
             raise ValueError("a question must be a JSON object")
-        question = _question_adapter.validate_python(data | {"id": question_id})
+        question = question_adapter.validate_python(data | {"id": question_id})
     except ValidationError as exc:
         errors = [f"questions[0]{line}" for line in format_validation_error(exc)]
     except ValueError as exc:  # includes JSON syntax errors

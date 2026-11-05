@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 from sqlmodel import select
 
-from app.builder import normalize_batch, plan_types
+from app.builder import accept_batch, plan_slots, plan_types, question_schema
 from app.jobs import INTERRUPTED, JobRunner, drafts_dir
 from app.llm import LLMError, LLMReplyError
 from app.models import Exam, GenerationJob
@@ -104,17 +104,40 @@ def test_generates_in_batches_and_avoids_repeats(llm_client) -> None:
     assert "Frage single 1?" in second and "Do not repeat" in second
 
 
-def test_repair_retry_feeds_back_the_problem(llm_client) -> None:
-    llm = llm_client.app.state.llm = FakeLLM(reply("single"), reply(*FIVE))
+def test_partial_reply_is_kept_and_rest_follows(llm_client) -> None:
+    llm = llm_client.app.state.llm = FakeLLM(
+        reply("single"), reply("single", "single", "multiple", "open")
+    )
     create(llm_client)
+    job = job_of(llm_client)
+    assert job.status == "done" and len(job.draft["questions"]) == 5 and len(llm.calls) == 2
+    assert [q["id"] for q in job.draft["questions"]] == [f"ai-1-{n:03}" for n in range(1, 6)]
+    assert (
+        len(
+            llm.calls[1]["schema"]["properties"]["questions"]["items"]["properties"]["type"]["enum"]
+        )
+        == 3
+    )
+
+
+def test_oversized_reply_is_trimmed(llm_client) -> None:
+    llm = llm_client.app.state.llm = FakeLLM(reply(*["open"] * 8))
+    create(llm_client, single="0", multiple="0", open="2")
+    job = job_of(llm_client)
+    assert job.status == "done" and len(job.draft["questions"]) == 2 and len(llm.calls) == 1
+
+
+def test_repair_retry_only_when_nothing_is_usable(llm_client) -> None:
+    llm = llm_client.app.state.llm = FakeLLM(reply("open"), reply(*FIVE))
+    create(llm_client, single="3", multiple="1", open="0")
     assert job_of(llm_client).status == "done" and len(llm.calls) == 2
     last = llm.calls[1]["messages"][-1]["content"]
-    assert "unusable" in last and "expected question types" in last
+    assert "unusable" in last and "missing" in last
 
 
 def test_failed_batch_keeps_progress_and_can_resume(llm_client) -> None:
     llm = llm_client.app.state.llm = FakeLLM(
-        reply(*["single"] * 5), reply("single"), LLMReplyError("not json")
+        reply(*["single"] * 5), LLMReplyError("not json"), LLMReplyError("not json")
     )
     create(llm_client, single="7", multiple="0", open="0")
     job = job_of(llm_client)
@@ -229,7 +252,7 @@ def test_regenerate_keeps_id_type_topic_and_position(llm_client) -> None:
     job = job_of(llm_client)
     questions = job.draft["questions"]
     assert [q["id"] for q in questions] == ["ai-1-001", "ai-1-002", "ai-1-003"]
-    assert questions[1]["question"] == "Frage multiple 9?" and questions[1]["topic"] == "Egal"
+    assert questions[1]["question"] == "Frage multiple 9?" and questions[1]["topic"] == "Thema"
     assert job.regenerating == []
     prompt = llm.calls[-1]["messages"][0]["content"]
     assert 'topic "Thema"' in prompt and "Frage single 1?" in prompt
@@ -320,9 +343,34 @@ def test_model_info_endpoint(llm_client) -> None:
     assert ".png" not in llm_client.get("/api/builder/models/m").json()["accept"]
 
 
-def test_normalize_batch_rejects_wrong_option_count() -> None:
-    with pytest.raises(ValueError, match="expected 3 options"):
-        normalize_batch(reply("single"), ["single"], 3, ["x-1"])
+def test_accept_batch_fills_slots_and_reports_problems() -> None:
+    slots = plan_slots(["single", "open"]) + [{"type": "single", "topic": "Fix"}]
+    bad = question("single") | {"correct": [7]}
+    items = {"questions": [bad, question("open"), question("single", 2), question("open", 3), "x"]}
+    filled, problems = accept_batch(items, slots, 4, ["a", "b", "c"])
+    assert [(i, q["id"], q["type"]) for i, q in filled] == [(0, "a", "single"), (1, "b", "open")]
+    assert any("correct" in p for p in problems) and any("unknown type" in p for p in problems)
+    assert (
+        "1 extra question(s) dropped" in problems
+        and "1 of 3 requested question(s) missing" in problems
+    )
+
+
+def test_accept_batch_slot_topic_wins_and_option_count_checked() -> None:
+    filled, _ = accept_batch(reply("single"), [{"type": "single", "topic": "Fix"}], None, ["a"])
+    assert filled[0][1]["topic"] == "Fix"
+    filled, problems = accept_batch(reply("single"), plan_slots(["single"]), 3, ["a"])
+    assert filled == [] and "expected 3 options" in problems[0]
+
+
+def test_accept_batch_rejects_non_list() -> None:
+    with pytest.raises(ValueError):
+        accept_batch({"nope": 1}, plan_slots(["single"]), None, ["a"])
+
+
+def test_schema_limits_count_and_types() -> None:
+    schema = question_schema(plan_slots(["open", "open"]))["properties"]["questions"]
+    assert schema["maxItems"] == 2 and schema["items"]["properties"]["type"]["enum"] == ["open"]
 
 
 def test_plan_types_orders_by_type() -> None:

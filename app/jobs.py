@@ -21,7 +21,7 @@ from app.builder import (
     Material,
     generate_batch,
     load_images,
-    plan_types,
+    plan_slots,
 )
 from app.llm import LLMClient, LLMError
 from app.models import GenerationJob, utcnow
@@ -171,22 +171,25 @@ class JobRunner:
     # -- the jobs ----------------------------------------------------------------------------
 
     def run_exam(self, job_id: int) -> None:
-        """Generate the draft batch by batch; resumes after what is already in the draft."""
+        """Generate the draft batch by batch from `params["plan"]`, the slots still to write.
+        Slots a reply leaves unfilled move to the next batch; every batch fills at least one
+        slot or fails the job, so this ends. Resumes where a failed run stopped."""
         with Session(self.engine) as session:
             job = session.get(GenerationJob, job_id)
             if job is None:
                 return
             params, model, material = job.params, job.model, self._material(job)
             draft = job.draft or new_draft(params)
-            types = plan_types(params["single"], params["multiple"], params["open"])
-            job.status, job.total, job.errors = "running", len(types), []
+            remaining = list(params["plan"])
+            job.status, job.errors = "running", []
             job.progress = len(draft["questions"])
+            job.total = job.progress + len(remaining)
             job.updated_at = utcnow()
             session.add(job)
             session.commit()
 
         llm = self._llm()
-        while len(draft["questions"]) < len(types):
+        while remaining:
             with Session(self.engine) as session:
                 job = session.get(GenerationJob, job_id)
                 if job is None:
@@ -198,9 +201,9 @@ class JobRunner:
                     session.commit()
                     return
             done = len(draft["questions"])
-            batch = types[done : done + BATCH_SIZE]
+            batch = remaining[:BATCH_SIZE]
             try:
-                questions = generate_batch(
+                filled, _problems = generate_batch(
                     llm, model, params, material, batch, draft["questions"],
                     question_ids(job_id, done, len(batch)),
                 )  # fmt: skip
@@ -210,8 +213,11 @@ class JobRunner:
             except LLMError as exc:
                 self._fail(job_id, None, [str(exc)])
                 return
-            draft = {**draft, "questions": [*draft["questions"], *questions]}
-            self._set(job_id, draft=draft, progress=len(draft["questions"]))
+            taken = {index for index, _ in filled}
+            remaining = [s for i, s in enumerate(batch) if i not in taken] + remaining[BATCH_SIZE:]
+            draft = {**draft, "questions": [*draft["questions"], *(q for _, q in filled)]}
+            params = {**params, "plan": remaining}
+            self._set(job_id, draft=draft, params=params, progress=len(draft["questions"]))
         self._set(job_id, status="done")
 
     def run_regenerate(self, job_id: int, question_id: str) -> None:
@@ -228,9 +234,9 @@ class JobRunner:
             return
         others = [q for q in existing if q["id"] != question_id]
         try:
-            [new] = generate_batch(
-                self._llm(), model, params, material, [old["type"]], others, [question_id],
-                fixed_topic=old["topic"],
+            [(_, new)], _problems = generate_batch(
+                self._llm(), model, params, material, plan_slots([old["type"]], old["topic"]),
+                others, [question_id],
             )  # fmt: skip
         except GenerationError as exc:
             self._fail(job_id, question_id, [str(exc), *exc.errors[:3]])

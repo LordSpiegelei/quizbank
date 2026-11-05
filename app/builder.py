@@ -13,7 +13,7 @@ from pydantic import TypeAdapter, ValidationError
 
 from app.llm import LLMClient, LLMError, LLMReplyError, ModelInfo, estimate_tokens
 from app.prompts import language_name, render_prompt
-from app.schemas import QUESTION_FIELDS, QuestionIn, format_validation_error
+from app.schemas import QUESTION_FIELDS, QuestionIn
 
 BATCH_SIZE = 5  # questions per LLM call
 MAX_QUESTIONS = 100
@@ -33,7 +33,7 @@ IMAGE_TYPES = {
 }
 QUESTION_TYPES = ("single", "multiple", "open")
 
-_questions_adapter = TypeAdapter(list[QuestionIn])
+question_adapter = TypeAdapter(QuestionIn)
 
 
 class MaterialError(ValueError):
@@ -110,19 +110,27 @@ def plan_types(single: int, multiple: int, open_: int) -> list[str]:
     return ["single"] * single + ["multiple"] * multiple + ["open"] * open_
 
 
-def question_schema() -> dict[str, Any]:
+def plan_slots(types: list[str], topic: str | None = None) -> list[dict[str, Any]]:
+    """The plan a draft is generated from: one slot per question still to write."""
+    return [{"type": kind, "topic": topic} for kind in types]
+
+
+def question_schema(slots: list[dict[str, Any]]) -> dict[str, Any]:
     """One flat schema for all types (union schemas are poorly supported by local servers);
-    `normalize_batch` keeps only the fields of each question's own type."""
+    `accept_batch` keeps only the fields of each question's own type. Count and types are
+    limited to the batch, so a constrained server cannot run away with extra questions."""
     text = {"type": "string"}
+    kinds = [kind for kind in QUESTION_TYPES if any(s["type"] == kind for s in slots)]
     return {
         "type": "object",
         "properties": {
             "questions": {
                 "type": "array",
+                "maxItems": len(slots),
                 "items": {
                     "type": "object",
                     "properties": {
-                        "type": {"type": "string", "enum": list(QUESTION_TYPES)},
+                        "type": {"type": "string", "enum": kinds},
                         "topic": text,
                         "tags": {"type": "array", "items": text},
                         "source": text,
@@ -151,33 +159,55 @@ def question_schema() -> dict[str, Any]:
     }
 
 
-def normalize_batch(
-    reply: Any, batch_types: list[str], options: int, ids: list[str]
-) -> list[dict[str, Any]]:
-    """Validated question dicts (with ids) from a model reply, or ValueError with lines the
-    model can act on. Fields foreign to a question's type are dropped, empty values too."""
+def _error_lines(exc: ValidationError) -> str:
+    # loc starts with the union tag (the question type); leave it out
+    return "; ".join(
+        f"{'.'.join(str(p) for p in e['loc'][1:]) or 'question'}: {e['msg']}" for e in exc.errors()
+    )
+
+
+def accept_batch(
+    reply: Any, slots: list[dict[str, Any]], options: int | None, ids: list[str]
+) -> tuple[list[tuple[int, dict[str, Any]]], list[str]]:
+    """Fill as many slots as the reply allows: each item is validated on its own, each slot
+    takes the first valid unused item of its type (and gets the slot's topic, if it has one),
+    extra items are dropped. Returns ((slot index, question with id), problems); raises
+    ValueError only if the reply is not a question list at all."""
     items = reply.get("questions") if isinstance(reply, dict) else None
-    if not isinstance(items, list) or not all(isinstance(item, dict) for item in items):
+    if not isinstance(items, list):
         raise ValueError('reply must be {"questions": [ ... ]}')
-    wanted = sorted(batch_types)
-    got = sorted(str(item.get("type")) for item in items)
-    if got != wanted:
-        raise ValueError(f"expected question types {wanted}, got {got}")
-    cleaned = []
-    for item, question_id in zip(items, ids, strict=True):
-        keep = QUESTION_FIELDS[item["type"]]
+    problems: list[str] = []
+    valid: dict[str, list[dict[str, Any]]] = {}
+    for n, item in enumerate(items):
+        kind = item.get("type") if isinstance(item, dict) else None
+        if kind not in QUESTION_FIELDS:
+            problems.append(f"questions[{n}]: unknown type {kind!r}")
+            continue
+        keep = QUESTION_FIELDS[kind]
         data = {k: v for k, v in item.items() if k in keep and v not in (None, "", [])}
-        cleaned.append(data | {"id": question_id})
-    try:
-        questions = _questions_adapter.validate_python(cleaned)
-    except ValidationError as exc:
-        lines = format_validation_error(exc)
-        raise ValueError("; ".join(f"questions{line}" for line in lines)) from exc
-    for index, question in enumerate(questions):
+        try:
+            question = question_adapter.validate_python(data | {"id": "new"})
+        except ValidationError as exc:
+            problems.append(f"questions[{n}]: {_error_lines(exc)}")
+            continue
         choices = getattr(question, "options", None)
-        if choices is not None and len(choices) != options:
-            raise ValueError(f"questions[{index}]: expected {options} options, got {len(choices)}")
-    return [q.model_dump(mode="json", exclude_none=True) for q in questions]
+        if options and choices is not None and len(choices) != options:
+            problems.append(f"questions[{n}]: expected {options} options, got {len(choices)}")
+            continue
+        valid.setdefault(kind, []).append(question.model_dump(mode="json", exclude_none=True))
+
+    filled: list[tuple[int, dict[str, Any]]] = []
+    for index, slot in enumerate(slots):
+        if valid.get(slot["type"]):
+            question = valid[slot["type"]].pop(0)
+            if slot.get("topic"):
+                question["topic"] = slot["topic"]
+            filled.append((index, question | {"id": ids[len(filled)]}))
+    if extra := sum(len(rest) for rest in valid.values()):
+        problems.append(f"{extra} extra question(s) dropped")
+    if missing := len(slots) - len(filled):
+        problems.append(f"{missing} of {len(slots)} requested question(s) missing")
+    return filled, problems
 
 
 def _user_message(prompt: str, images: list[tuple[str, bytes]]) -> dict[str, Any]:
@@ -196,21 +226,19 @@ def generate_batch(
     model: str,
     params: dict[str, Any],
     material: Material,
-    batch_types: list[str],
+    slots: list[dict[str, Any]],
     existing: list[dict[str, Any]],
     ids: list[str],
-    fixed_topic: str | None = None,
-) -> list[dict[str, Any]]:
-    """One LLM call for `batch_types`, with one repair retry that feeds the problem back.
-    Raises GenerationError when the reply stays unusable, LLMError when the server fails."""
+) -> tuple[list[tuple[int, dict[str, Any]]], list[str]]:
+    """One LLM call for `slots`; see `accept_batch` for the result. Only a reply that fills no
+    slot at all gets the repair retry (with the problems fed back). Raises GenerationError
+    when that stays empty too, LLMError when the server fails."""
     prompt = render_prompt(
         "generate.txt",
-        types=batch_types,
-        counts={kind: batch_types.count(kind) for kind in QUESTION_TYPES if kind in batch_types},
-        options=params["options"],
+        slots=slots,
+        options=params.get("options"),
         topics=params.get("topics") or [],
         used_topics=sorted({q["topic"] for q in existing}),
-        fixed_topic=fixed_topic,
         instructions=params.get("instructions") or "",
         avoid=[q["question"] for q in existing],
         material=material.text,
@@ -218,21 +246,23 @@ def generate_batch(
         language=language_name(params["language"]),
     )
     messages = [_user_message(prompt, material.images)]
-    problem = ""
+    problems: list[str] = []
     for _ in range(2):
         reply = None
         try:
             reply = llm.chat(
-                model, messages, question_schema(), reserve_tokens=output_reserve(len(batch_types))
+                model, messages, question_schema(slots), reserve_tokens=output_reserve(len(slots))
             )
-            return normalize_batch(reply, batch_types, params["options"], ids)
+            filled, problems = accept_batch(reply, slots, params.get("options"), ids)
         except (LLMReplyError, ValueError) as exc:
-            problem = str(exc)
-            if reply is not None:
-                messages = [*messages, {"role": "assistant", "content": json.dumps(reply)}]
-            hint = f"That reply is unusable: {problem}. Reply again with valid JSON only."
-            messages = [*messages, {"role": "user", "content": hint}]
-    raise GenerationError(f"the LLM gave no usable questions ({problem})", [problem])
+            filled, problems = [], [str(exc)]
+        if filled:
+            return filled, problems
+        if reply is not None:
+            messages = [*messages, {"role": "assistant", "content": json.dumps(reply)}]
+        hint = f"That reply is unusable: {'; '.join(problems)}. Reply again with valid JSON only."
+        messages = [*messages, {"role": "user", "content": hint}]
+    raise GenerationError(f"the LLM gave no usable questions ({problems[0]})", problems)
 
 
 def load_images(directory: Path, names: list[str]) -> list[tuple[str, bytes]]:

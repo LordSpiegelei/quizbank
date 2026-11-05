@@ -10,9 +10,9 @@ You write questions for a mock exam. Base them on the material {{ "above" if mat
 (No material was provided: use general knowledge of the topics.)
 {% endif %}
 
-Write exactly {{ types | length }} question{{ "s" if types | length != 1 }}:
-{% for kind, count in counts.items() %}
-- {{ count }} of type "{{ kind }}"{% if kind == "single" %}: {{ options }} options, exactly one correct{% elif kind == "multiple" %}: {{ options }} options, one or more correct{% else %}: an open case-study question with a scenario, a model answer and a rubric{% endif %}
+Write exactly {{ slots | length }} question{{ "s" if slots | length != 1 }}, one per entry of this list, in this order:
+{% for slot in slots %}
+{{ loop.index }}. type "{{ slot.type }}"{% if slot.type == "single" %}: {{ options or "2-10 (as the question needs)" }} options, exactly one correct{% elif slot.type == "multiple" %}: {{ options or "2-10 (as the question needs)" }} options, one or more correct{% else %}: an open case-study question with a scenario, a model answer and a rubric{% endif %}{% if slot.topic %}; topic "{{ slot.topic }}"{% endif %}
 
 {% endfor %}
 Rules:
@@ -22,8 +22,8 @@ Rules:
 - "open" questions: "points" is 5-10, "rubric" lists criteria whose points add up to "points" at most, "model_answer" is a complete answer.
 - "tags": 1-3 keywords. "source": where in the material it comes from, if known.
 - Markdown is allowed in texts. Write all texts in {{ language }}.
-{% if fixed_topic %}
-- Every question has the topic "{{ fixed_topic }}".
+{% if slots | selectattr("topic") | list | length == slots | length %}
+- Use the topic given for each entry.
 {% elif topics %}
 - "topic" is one of: {{ topics | join("; ") }}. Spread the questions evenly across them.
 {% else %}
@@ -41,4 +41,4 @@ Do not repeat or closely paraphrase these existing questions:
 {% endfor %}
 {% endif %}
 
-Reply with JSON only: {"questions": [ ... ]}.
+Reply with JSON only: {"questions": [ ... ]} with exactly {{ slots | length }} item{{ "s" if slots | length != 1 }}.
