@@ -117,6 +117,8 @@ Set `LLM_BASE_URL` to any OpenAI-compatible server (for example [Ollama](https:/
 - **AI review:** on the review page, open answers get a "Review with AI" button. The model suggests points per rubric criterion and written feedback, which prefill the self-assessment form. Nothing counts until you save it.
 - **Build with AI:** generate a draft exam from your topics and material (pasted text, text files and, with a vision-capable model, images). Every count is optional: leave the number of questions, a type's count or the options per question blank and the AI decides (it first outlines the exam); `0` excludes a type. Review the draft, edit questions as JSON, drop or regenerate single questions, then import. PDFs and Office files are not accepted: paste their text.
 
+A live log on the draft page (and live text in the AI review) shows what the model is doing, including its thinking for reasoning models. With Ollama, quizbank uses its native API and sets the context size (`num_ctx`) to what each request needs.
+
 Which files a model accepts and how much fits into its context is read from Ollama (`/api/show`) per selected model; other servers can be described with `LLM_CAPABILITIES` and `LLM_CONTEXT_TOKENS`. Everything stays on your machine unless you point `LLM_BASE_URL` somewhere else.
 
 ## Configuration

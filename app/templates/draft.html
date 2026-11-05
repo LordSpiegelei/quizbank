@@ -23,6 +23,17 @@
   {% endif %}
 </section>
 
+{# Live log: what the job did and what the model is writing right now (polled by shell.js). #}
+<details class="live-log" {{ 'open' if job.busy or job.regenerating }}
+         data-log-url="{{ path('draft_log', job_id=job.id) }}" data-next="{{ job.log[-1].n if job.log else 0 }}"
+         {% if job.busy or job.regenerating %}data-log-active{% endif %}>
+  <summary>{{ t("log.title") }}</summary>
+  <ol class="log-events">
+    {% for event in job.log %}<li class="{{ event.kind }}"><time>{{ event.at[11:19] }}</time> {{ event.text }}</li>{% endfor %}
+  </ol>
+  <pre class="log-live" data-waiting="{{ t('log.waiting') }}" data-thinking="{{ t('log.thinking') }}">{% for seg in job.live %}<span class="{{ seg.kind }}">{{ seg.text }}</span>{% endfor %}</pre>
+</details>
+
 <div class="draft-actions">
   {% if job.busy %}
   <form method="post" action="{{ path('draft_cancel', job_id=job.id) }}"><button class="btn-quiet">{{ t("draft.cancel") }}</button></form>

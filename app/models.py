@@ -197,6 +197,10 @@ class GenerationJob(SQLModel, table=True):
     draft: dict[str, Any] | None = Field(default=None, sa_type=JSON)
     errors: list[str] = Field(default_factory=list, sa_type=JSON)
     regenerating: list[str] = Field(default_factory=list, sa_type=JSON)  # question ids
+    # Live log for the draft page: events {"n", "at", "kind", "text"} (last few hundred) and
+    # the text the model is streaming right now, as segments {"kind", "text"}.
+    log: list[dict[str, Any]] = Field(default_factory=list, sa_type=JSON)
+    live: list[dict[str, Any]] = Field(default_factory=list, sa_type=JSON)
     cancel_requested: bool = False
     created_at: datetime = Field(default_factory=utcnow)
     updated_at: datetime = Field(default_factory=utcnow)

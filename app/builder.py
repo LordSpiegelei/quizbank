@@ -11,7 +11,7 @@ from typing import Any
 
 from pydantic import TypeAdapter, ValidationError
 
-from app.llm import LLMClient, LLMError, LLMReplyError, ModelInfo, estimate_tokens
+from app.llm import LLMClient, LLMError, LLMReplyError, ModelInfo, OnText, estimate_tokens
 from app.prompts import language_name, render_prompt
 from app.schemas import QUESTION_FIELDS, QuestionIn
 
@@ -229,6 +229,7 @@ def generate_batch(
     slots: list[dict[str, Any]],
     existing: list[dict[str, Any]],
     ids: list[str],
+    on_text: OnText | None = None,
 ) -> tuple[list[tuple[int, dict[str, Any]]], list[str]]:
     """One LLM call for `slots`; see `accept_batch` for the result. Only a reply that fills no
     slot at all gets the repair retry (with the problems fed back). Raises GenerationError
@@ -251,13 +252,19 @@ def generate_batch(
         reply = None
         try:
             reply = llm.chat(
-                model, messages, question_schema(slots), reserve_tokens=output_reserve(len(slots))
+                model,
+                messages,
+                question_schema(slots),
+                reserve_tokens=output_reserve(len(slots)),
+                on_text=on_text,
             )
             filled, problems = accept_batch(reply, slots, params.get("options"), ids)
         except (LLMReplyError, ValueError) as exc:
             filled, problems = [], [str(exc)]
         if filled:
             return filled, problems
+        if on_text:
+            on_text("meta", f"nothing usable ({'; '.join(problems)}), asking again")
         if reply is not None:
             messages = [*messages, {"role": "assistant", "content": json.dumps(reply)}]
         hint = f"That reply is unusable: {'; '.join(problems)}. Reply again with valid JSON only."
@@ -330,7 +337,11 @@ def normalize_outline(
 
 
 def outline(
-    llm: LLMClient, model: str, params: dict[str, Any], material: Material
+    llm: LLMClient,
+    model: str,
+    params: dict[str, Any],
+    material: Material,
+    on_text: OnText | None = None,
 ) -> list[dict[str, Any]]:
     """Let the model decide what the user left open; returns the plan. One repair retry."""
     counts, total = params["counts"], params["total"]
@@ -350,10 +361,18 @@ def outline(
     for _ in range(2):
         reply = None
         try:
-            reply = llm.chat(model, messages, outline_schema(counts, total), reserve_tokens=4096)
+            reply = llm.chat(
+                model,
+                messages,
+                outline_schema(counts, total),
+                reserve_tokens=4096,
+                on_text=on_text,
+            )
             return normalize_outline(reply, counts, total)
         except (LLMReplyError, ValueError) as exc:
             problem = str(exc)
+            if on_text:
+                on_text("meta", f"outline unusable ({problem}), asking again")
         if reply is not None:
             messages = [*messages, {"role": "assistant", "content": json.dumps(reply)}]
         hint = f"That reply is unusable: {problem}. Reply again with valid JSON only."

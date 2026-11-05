@@ -231,6 +231,9 @@ TEXTS: dict[str, str] = {
     "builder.err_format": "„{name}“ kann {model} nicht übergeben werden: nur Textdateien (und Bilder bei Modellen mit Bildverständnis) werden akzeptiert.",
     "builder.err_context": "Das Material passt nicht in das Modell: etwa {used} Tokens nötig, {limit} verfügbar. Kürze es oder wähle ein Modell mit größerem Kontext.",
     # Entwürfe
+    "log.title": "Live-Protokoll",
+    "log.thinking": "Denkt nach",
+    "log.waiting": "Warte auf das Modell …",
     "draft.title": "Entwurf: {title}",
     "draft.lead": "{course}, erzeugt mit {model}. Nichts wird importiert, bevor du es willst.",
     "draft.status.queued": "In der Warteschlange",

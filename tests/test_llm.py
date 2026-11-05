@@ -202,3 +202,67 @@ def test_ollama_images_are_converted():
     client.chat("m", [{"role": "user", "content": parts}])
     message = seen[0][1]["messages"][0]
     assert message == {"role": "user", "content": "look", "images": ["QUJD"]}
+
+
+def test_think_splitter_handles_tags_split_across_chunks():
+    from app.llm import ThinkSplitter
+
+    seen = []
+    splitter = ThinkSplitter(lambda kind, text: seen.append((kind, text)))
+    for chunk in ["<thi", "nk>plan", " more</th", 'ink>{"a"', ": 1}"]:
+        splitter.feed(chunk)
+    splitter.flush()
+    joined = {}
+    for kind, text in seen:
+        joined[kind] = joined.get(kind, "") + text
+    assert joined == {"thinking": "plan more", "output": '{"a": 1}'}
+
+
+def test_stream_ollama_ndjson_with_thinking():
+    lines = [
+        {"message": {"thinking": "let me"}},
+        {"message": {"content": '{"ok"'}},
+        {"message": {"content": ": 2}"}, "done": True},
+    ]
+
+    def handler(request):
+        if request.url.path == "/api/show":
+            return httpx.Response(200, json={"capabilities": []})
+        assert json.loads(request.content)["stream"] is True
+        return httpx.Response(200, content="\n".join(json.dumps(x) for x in lines).encode())
+
+    seen = []
+    client = make_client(handler)
+    result = client.chat("m", [], {"type": "object"}, on_text=lambda k, t: seen.append((k, t)))
+    assert result == {"ok": 2}
+    assert seen[0][0] == "meta" and "num_ctx" in seen[0][1]
+    assert ("thinking", "let me") in seen
+    assert "".join(t for k, t in seen if k == "output") == '{"ok": 2}'
+
+
+def test_stream_openai_sse_with_think_tags():
+    events = [
+        {"choices": [{"delta": {"content": "<think>hm"}}]},
+        {"choices": [{"delta": {"content": "</think>Hi"}}]},
+        {"choices": [{"delta": {"content": " there"}}]},
+    ]
+    body = "".join(f"data: {json.dumps(e)}\n\n" for e in events) + "data: [DONE]\n\n"
+
+    def handler(request):
+        return httpx.Response(200, content=body.encode())
+
+    seen = []
+    client = make_client(openai_only(handler))
+    assert client.chat("m", [], on_text=lambda k, t: seen.append((k, t))) == "Hi there"
+    assert ("thinking", "hm") in seen
+    assert "".join(t for k, t in seen if k == "output") == "Hi there"
+
+
+def test_stream_unreachable_raises_llm_error():
+    def handler(request):
+        if request.url.path == "/api/show":
+            return httpx.Response(404)
+        raise httpx.ConnectError("down", request=request)
+
+    with pytest.raises(LLMError, match="cannot reach"):
+        make_client(handler).chat("m", [], on_text=lambda k, t: None)

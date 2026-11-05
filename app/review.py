@@ -6,7 +6,7 @@ from typing import Any
 
 from sqlmodel import Session
 
-from app.llm import LLMClient, LLMReplyError
+from app.llm import LLMClient, LLMReplyError, OnText
 from app.models import Answer, Attempt, utcnow
 from app.prompts import language_name, render_prompt
 from app.scoring import needs_review, self_score_from
@@ -59,10 +59,12 @@ def ai_review(
     attempt: Attempt,
     answer: Answer,
     language: str,
+    on_text: OnText | None = None,
 ) -> None:
-    """Ask `model` to assess `answer` and store the suggestion. One retry, with the problem
-    spelled out, if the reply is unusable; LLMError (unreachable, still unusable) propagates
-    and nothing is stored. Raises ValueError for answers that are not reviewable yet."""
+    """Ask `model` to assess `answer` and store the suggestion (`on_text` follows it live).
+    One retry, with the problem spelled out, if the reply is unusable; LLMError (unreachable,
+    still unusable) propagates and nothing is stored. Raises ValueError for answers that are
+    not reviewable yet."""
     snap = answer.snapshot
     if attempt.finished_at is None:
         raise ValueError("review after submitting")
@@ -79,13 +81,14 @@ def ai_review(
     messages: list[dict[str, Any]] = [{"role": "user", "content": prompt}]
     for attempt_no in range(2):
         try:
-            scores, feedback = parse_review(
-                llm.chat(model, messages, review_schema(len(limits))), limits
-            )
+            reply = llm.chat(model, messages, review_schema(len(limits)), on_text=on_text)
+            scores, feedback = parse_review(reply, limits)
             break
         except (ValueError, LLMReplyError) as exc:
             if attempt_no:
                 raise LLMReplyError(f"the LLM gave no usable review ({exc})") from exc
+            if on_text:
+                on_text("meta", f"unusable reply ({exc}), asking again")
             hint = f"Your reply was unusable ({exc}). Reply again with valid JSON only."
             messages = [*messages, {"role": "user", "content": hint}]
     self_score_from(snap["points"], snap.get("rubric"), scores)  # same check as the form

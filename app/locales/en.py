@@ -231,6 +231,9 @@ TEXTS: dict[str, str] = {
     "builder.err_format": "“{name}” cannot be given to {model}: only text files (and images, for models with vision) are accepted.",
     "builder.err_context": "The material does not fit the model: about {used} tokens are needed, {limit} are available. Shorten it or choose a model with a larger context.",
     # Drafts
+    "log.title": "Live log",
+    "log.thinking": "Thinking",
+    "log.waiting": "Waiting for the model …",
     "draft.title": "Draft: {title}",
     "draft.lead": "{course}, generated with {model}. Nothing is imported until you say so.",
     "draft.status.queued": "Queued",

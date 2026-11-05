@@ -80,11 +80,16 @@ class FakeLLM:
 
         return ModelInfo(self.vision, self.context_tokens)
 
-    def chat(self, model, messages, json_schema=None, reserve_tokens=2048):
+    def chat(self, model, messages, json_schema=None, reserve_tokens=2048, on_text=None):
         self.calls.append(
             {"model": model, "messages": messages, "schema": json_schema, "reserve": reserve_tokens}
         )
         reply = self.replies.pop(0)
+        if on_text is not None:
+            on_text("meta", f"{model} (fake)")
         if isinstance(reply, Exception):
             raise reply
+        if on_text is not None:
+            on_text("thinking", "hmm")
+            on_text("output", json.dumps(reply) if not isinstance(reply, str) else reply)
         return reply

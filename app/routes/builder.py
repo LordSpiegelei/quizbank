@@ -282,6 +282,22 @@ def draft_status(session: SessionDep, llm: LlmDep, job_id: int):
     }
 
 
+@router.get("/api/builder/drafts/{job_id}/log", name="draft_log")
+def draft_log(session: SessionDep, llm: LlmDep, job_id: int, after: int = 0):
+    """Log events after number `after`, the live model output and what the page needs to
+    know whether to reload (status, version)."""
+    job = get_or_404(session, GenerationJob, job_id)
+    events = [event for event in job.log if event["n"] > after]
+    return {
+        "events": events,
+        "next": job.log[-1]["n"] if job.log else 0,
+        "live": job.live,
+        "status": job.status,
+        "busy": job.busy or bool(job.regenerating),
+        "version": job.updated_at.isoformat(),
+    }
+
+
 def _idle_job(session: Session, job_id: int) -> GenerationJob:
     job = get_or_404(session, GenerationJob, job_id)
     if job.busy:

@@ -100,13 +100,48 @@
       button.textContent = box.dataset.busy;
       box.setAttribute("aria-busy", "true");
       try {
-        const response = await fetch(box.dataset.aiReview, {
+        const response = await fetch(`${box.dataset.aiReview}?stream=1`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ model: box.querySelector("select[name=model]").value }),
         });
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok) throw new Error(typeof data.detail === "string" ? data.detail : "");
+        if (!response.ok) {
+          const failure = await response.json().catch(() => ({}));
+          throw new Error(typeof failure.detail === "string" ? failure.detail : "");
+        }
+        // NDJSON: live text while the model writes, then the result (or an error).
+        const live = document.createElement("pre");
+        live.className = "log-live";
+        feedback.replaceChildren(live);
+        const show = (kind, text) => {
+          const last = live.lastElementChild;
+          if (last && last.className === kind) last.textContent += text;
+          else {
+            const span = document.createElement("span");
+            span.className = kind;
+            span.textContent = kind === "meta" ? `${text}\n` : text;
+            live.append(span);
+          }
+          live.scrollTop = live.scrollHeight;
+        };
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+        let data = null;
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop();
+          for (const line of lines.filter(Boolean)) {
+            const item = JSON.parse(line);
+            if (item.error) throw new Error(item.error);
+            if (item.result) data = item.result;
+            else show(item.kind, item.text);
+          }
+        }
+        if (!data) throw new Error("");
         box.dataset.scores = JSON.stringify(data.scores);
         feedback.innerHTML = data.feedback_html;
         apply(data.scores);
@@ -167,16 +202,38 @@
     update();
   }
 
-  // Draft page: while something is generating, reload as soon as the server has news.
+  // Draft page: while something runs, follow the live log every second and reload as soon as
+  // the draft itself changed (status, questions).
   const poller = document.querySelector("[data-draft-poll]");
-  if (poller) {
+  const liveLog = document.querySelector("[data-log-url]");
+  if (poller && liveLog) {
+    const events = liveLog.querySelector(".log-events");
+    const live = liveLog.querySelector(".log-live");
     const tick = async () => {
       try {
-        const data = await (await fetch(poller.dataset.draftPoll)).json();
+        const url = `${liveLog.dataset.logUrl}?after=${liveLog.dataset.next}`;
+        const data = await (await fetch(url)).json();
         if (data.version !== poller.dataset.version) return location.reload();
+        for (const event of data.events) {
+          const item = document.createElement("li");
+          item.className = event.kind;
+          const time = document.createElement("time");
+          time.textContent = event.at.slice(11, 19);
+          item.append(time, " ", event.text);
+          events.append(item);
+        }
+        liveLog.dataset.next = data.next;
+        live.replaceChildren(...data.live.map((seg) => {
+          const span = document.createElement("span");
+          span.className = seg.kind;
+          span.textContent = seg.text;
+          return span;
+        }));
+        if (!data.live.length) live.textContent = live.dataset.waiting;
+        live.scrollTop = live.scrollHeight;
       } catch { /* try again */ }
-      setTimeout(tick, 2000);
+      setTimeout(tick, 1000);
     };
-    setTimeout(tick, 2000);
+    setTimeout(tick, 1000);
   }
 })();

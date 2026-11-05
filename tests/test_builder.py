@@ -451,3 +451,51 @@ def test_old_draft_params_are_migrated_on_resume(llm_client) -> None:
     llm_client.post("/builder/drafts/1/retry", follow_redirects=False)
     job = job_of(llm_client)
     assert job.status == "done" and len(job.draft["questions"]) == 2 and len(llm.calls) == 1
+
+
+def test_job_log_records_steps_and_live_output(llm_client) -> None:
+    llm_client.app.state.llm = FakeLLM(outline_reply("single"), reply("single"))
+    create(llm_client, single="", multiple="0", open="0", options="")
+    job = job_of(llm_client)
+    texts = [event["text"] for event in job.log]
+    assert texts[0] == "Started with fake"
+    assert "Planning the exam (outline)" in texts and "Outline: 1 questions (1 single)" in texts
+    assert any(t.startswith("Writing 1 questions") for t in texts)
+    assert texts[-1] == "Done: 1 questions"
+    assert [e["n"] for e in job.log] == list(range(1, len(job.log) + 1))
+    assert {seg["kind"] for seg in job.live} == {"thinking", "output"}
+
+
+def test_job_log_records_errors(llm_client) -> None:
+    llm_client.app.state.llm = FakeLLM(LLMError("cannot reach the LLM"))
+    create(llm_client)
+    log = job_of(llm_client).log
+    assert log[-1] == log[-1] | {"kind": "error", "text": "cannot reach the LLM"}
+
+
+def test_log_endpoint_pages_by_number(llm_client) -> None:
+    _draft(llm_client, "single")
+    data = llm_client.get("/api/builder/drafts/1/log").json()
+    assert data["next"] == len(data["events"]) and data["status"] == "done"
+    assert data["busy"] is False and data["live"]
+    later = llm_client.get(f"/api/builder/drafts/1/log?after={data['next'] - 1}").json()
+    assert [e["n"] for e in later["events"]] == [data["next"]]
+
+
+def test_draft_page_shows_log(llm_client) -> None:
+    _draft(llm_client, "single")
+    page = llm_client.get("/builder/drafts/1").text
+    assert "Live-Protokoll" in page and "Started with fake" in page
+
+
+def test_job_log_caps_live_text(llm_client) -> None:
+    from app.jobs import JobLog
+
+    _draft(llm_client, "single")
+    log = JobLog(llm_client.app.state.engine, 1)
+    log.on_text("output", "a" * 5000)
+    log.on_text("thinking", "b" * 5000)
+    log.flush()
+    live = job_of(llm_client).live
+    assert sum(len(seg["text"]) for seg in live) == JobLog.MAX_LIVE_CHARS
+    assert live[-1] == {"kind": "thinking", "text": "b" * 5000}

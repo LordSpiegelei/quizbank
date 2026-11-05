@@ -8,6 +8,8 @@ import logging
 import queue
 import shutil
 import threading
+import time
+from collections import Counter
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -56,6 +58,72 @@ def new_draft(params: dict[str, Any]) -> dict[str, Any]:
 
 def remove_draft_files(directory: Path, job_id: int) -> None:
     shutil.rmtree(directory / str(job_id), ignore_errors=True)
+
+
+class JobLog:
+    """Events and live model output of a job, for the draft page. Written straight to the row
+    without touching `updated_at`, which the page watches to know when to reload."""
+
+    MAX_EVENTS = 300
+    MAX_LIVE_CHARS = 8000
+    FLUSH_SECONDS = 0.5
+
+    def __init__(self, engine: Engine, job_id: int) -> None:
+        self.engine = engine
+        self.job_id = job_id
+        self.live: list[dict[str, str]] = []
+        self._flushed = 0.0
+
+    def event(self, text: str, kind: str = "info") -> None:
+        with Session(self.engine) as session:
+            job = session.get(GenerationJob, self.job_id)
+            if job is None:
+                return
+            n = job.log[-1]["n"] + 1 if job.log else 1
+            entry = {"n": n, "at": utcnow().isoformat(), "kind": kind, "text": text}
+            job.log = [*job.log, entry][-self.MAX_EVENTS :]
+            session.add(job)
+            session.commit()
+
+    def on_text(self, kind: str, chunk: str) -> None:
+        """`OnText` callback: "meta" becomes an event (and starts a new live text), the rest
+        is appended to the live text and flushed every FLUSH_SECONDS."""
+        if kind == "meta":
+            self.event(chunk, "meta")
+            self.live = []
+            self.flush()
+            return
+        if self.live and self.live[-1]["kind"] == kind:
+            self.live[-1]["text"] += chunk
+        else:
+            self.live.append({"kind": kind, "text": chunk})
+        excess = sum(len(seg["text"]) for seg in self.live) - self.MAX_LIVE_CHARS
+        while excess > 0 and self.live:
+            first = self.live[0]
+            if len(first["text"]) <= excess:
+                excess -= len(first["text"])
+                self.live.pop(0)
+            else:
+                first["text"] = first["text"][excess:]
+                excess = 0
+        if time.monotonic() - self._flushed >= self.FLUSH_SECONDS:
+            self.flush()
+
+    def flush(self) -> None:
+        self._flushed = time.monotonic()
+        with Session(self.engine) as session:
+            job = session.get(GenerationJob, self.job_id)
+            if job is not None:
+                job.live = [dict(seg) for seg in self.live]
+                session.add(job)
+                session.commit()
+
+
+def _type_summary(slots: list[dict[str, Any]]) -> str:
+    counts = Counter(slot["type"] for slot in slots)
+    return ", ".join(
+        f"{counts[kind]} {kind}" for kind in ("single", "multiple", "open") if counts[kind]
+    )
 
 
 class JobRunner:
@@ -146,7 +214,17 @@ class JobRunner:
                 session.add(job)
                 session.commit()
 
-    def _fail(self, job_id: int, question_id: str | None, errors: list[str]) -> None:
+    def _fail(
+        self,
+        job_id: int,
+        question_id: str | None,
+        errors: list[str],
+        log: JobLog | None = None,
+    ) -> None:
+        if log is not None:
+            log.flush()
+            for error in errors:
+                log.event(error, "error")
         with Session(self.engine) as session:
             job = session.get(GenerationJob, job_id)
             if job is None:
@@ -202,16 +280,21 @@ class JobRunner:
             session.add(job)
             session.commit()
 
+        log = JobLog(self.engine, job_id)
+        log.event(f"Started with {model}")
         llm = self._llm()
         if params.get("plan") is None:  # something was left to the AI: outline it first
+            log.event("Planning the exam (outline)")
             try:
-                plan = outline(llm, model, params, material)
+                plan = outline(llm, model, params, material, on_text=log.on_text)
             except GenerationError as exc:
-                self._fail(job_id, None, [str(exc), *exc.errors[:3]])
+                self._fail(job_id, None, [str(exc), *exc.errors[:3]], log)
                 return
             except LLMError as exc:
-                self._fail(job_id, None, [str(exc)])
+                self._fail(job_id, None, [str(exc)], log)
                 return
+            log.flush()
+            log.event(f"Outline: {len(plan)} questions ({_type_summary(plan)})")
             params = {**params, "plan": plan}
             self._set(job_id, params=params, total=len(plan))
         remaining = list(params["plan"])
@@ -226,26 +309,35 @@ class JobRunner:
                     job.updated_at = utcnow()
                     session.add(job)
                     session.commit()
+                    log.event("Cancelled")
                     return
             done = len(draft["questions"])
             batch = remaining[:BATCH_SIZE]
+            log.event(
+                f"Writing {len(batch)} questions ({_type_summary(batch)}), {done} done so far"
+            )
             try:
-                filled, _problems = generate_batch(
+                filled, problems = generate_batch(
                     llm, model, params, material, batch, draft["questions"],
-                    question_ids(job_id, done, len(batch)),
+                    question_ids(job_id, done, len(batch)), on_text=log.on_text,
                 )  # fmt: skip
             except GenerationError as exc:
-                self._fail(job_id, None, [str(exc), *exc.errors[:3]])
+                self._fail(job_id, None, [str(exc), *exc.errors[:3]], log)
                 return
             except LLMError as exc:
-                self._fail(job_id, None, [str(exc)])
+                self._fail(job_id, None, [str(exc)], log)
                 return
+            log.flush()
+            log.event(f"Got {len(filled)} of {len(batch)} usable")
+            for problem in problems[:5]:
+                log.event(problem, "warning")
             taken = {index for index, _ in filled}
             remaining = [s for i, s in enumerate(batch) if i not in taken] + remaining[BATCH_SIZE:]
             draft = {**draft, "questions": [*draft["questions"], *(q for _, q in filled)]}
             params = {**params, "plan": remaining}
             self._set(job_id, draft=draft, params=params, progress=len(draft["questions"]))
         self._set(job_id, status="done")
+        log.event(f"Done: {len(draft['questions'])} questions")
 
     def run_regenerate(self, job_id: int, question_id: str) -> None:
         """Replace one question by a new one of the same id, type and topic."""
@@ -260,17 +352,21 @@ class JobRunner:
             self._fail(job_id, question_id, [])
             return
         others = [q for q in existing if q["id"] != question_id]
+        log = JobLog(self.engine, job_id)
+        log.event(f"Regenerating {question_id} ({old['type']}, topic {old['topic']})")
         try:
             [(_, new)], _problems = generate_batch(
                 self._llm(), model, params, material, plan_slots([old["type"]], old["topic"]),
-                others, [question_id],
+                others, [question_id], on_text=log.on_text,
             )  # fmt: skip
         except GenerationError as exc:
-            self._fail(job_id, question_id, [str(exc), *exc.errors[:3]])
+            self._fail(job_id, question_id, [str(exc), *exc.errors[:3]], log)
             return
         except LLMError as exc:
-            self._fail(job_id, question_id, [str(exc)])
+            self._fail(job_id, question_id, [str(exc)], log)
             return
+        log.flush()
+        log.event(f"Replaced {question_id}")
         with Session(self.engine) as session:  # re-read: the user may have edited meanwhile
             job = session.get(GenerationJob, job_id)
             if job is None or job.draft is None:

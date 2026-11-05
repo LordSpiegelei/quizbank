@@ -1,7 +1,12 @@
+import json
+import logging
+import queue
+import threading
+from collections.abc import Iterator
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request, Response
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, StreamingResponse
 from pydantic import BaseModel, ConfigDict
 from sqlmodel import Session
 
@@ -32,6 +37,7 @@ from app.scoring import needs_review
 from app.templating import redirect, render
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 # Texts the Alpine runner needs; everything else is rendered server-side.
 QUIZ_TEXT_KEYS = (
@@ -260,6 +266,42 @@ class AIReviewIn(BaseModel):
     model: str | None = None
 
 
+def _review_result(answer: Answer) -> dict[str, Any]:
+    return {
+        "scores": answer.ai_scores,
+        "feedback_html": render_markdown(answer.ai_feedback or ""),
+        "model": answer.ai_model,
+    }
+
+
+def _review_stream(
+    engine: Any, llm: LLMClient, model: str, attempt_id: int, answer_id: int, language: str
+) -> Iterator[str]:
+    """NDJSON: {"kind", "text"} while the model writes, then {"result": …} or {"error": …}.
+    The review runs in its own thread and session, the generator just relays its output."""
+    items: queue.Queue[dict[str, Any] | None] = queue.Queue()
+
+    def work() -> None:
+        try:
+            with Session(engine) as session:
+                attempt = session.get(Attempt, attempt_id)
+                answer = session.get(Answer, answer_id)
+                emit = lambda kind, text: items.put({"kind": kind, "text": text})  # noqa: E731
+                ai_review(session, llm, model, attempt, answer, language, on_text=emit)
+                items.put({"result": _review_result(answer)})
+        except (ValueError, LLMError) as exc:
+            items.put({"error": str(exc)})
+        except Exception as exc:  # report, never hang the stream
+            logger.exception("AI review failed")
+            items.put({"error": f"unexpected error: {exc}"})
+        finally:
+            items.put(None)
+
+    threading.Thread(target=work, name="quizbank-review", daemon=True).start()
+    while (item := items.get()) is not None:
+        yield json.dumps(item, ensure_ascii=False) + "\n"
+
+
 @router.post("/api/attempts/{attempt_id}/answers/{answer_id}/ai-review", name="ai_review_api")
 def ai_review_api(
     request: Request,
@@ -268,25 +310,31 @@ def ai_review_api(
     attempt_id: int,
     answer_id: int,
     body: AIReviewIn,
+    stream: bool = False,
 ):
-    """Suggest scores and feedback for an answer; the user still confirms them by saving."""
+    """Suggest scores and feedback for an answer; the user still confirms them by saving.
+    With `stream`, the model's text is relayed live as NDJSON (see `_review_stream`)."""
     attempt, answer = _attempt_answer(session, attempt_id, answer_id)
     model = body.model or llm.default_model
     if not model:
         raise HTTPException(status_code=422, detail=request.app.state.t("ai.no_model"))
     if attempt.finished_at is None:
         raise HTTPException(status_code=409, detail="review after submitting")
+    if not needs_review(answer.snapshot["type"]):
+        raise HTTPException(status_code=422, detail="this question has a fixed answer key")
+    language = request.app.state.settings.app_lang
+    if stream:
+        events = _review_stream(
+            request.app.state.engine, llm, model, attempt.id, answer.id, language
+        )
+        return StreamingResponse(events, media_type="application/x-ndjson")
     try:
-        ai_review(session, llm, model, attempt, answer, request.app.state.settings.app_lang)
+        ai_review(session, llm, model, attempt, answer, language)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from None
     except LLMError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from None
-    return {
-        "scores": answer.ai_scores,
-        "feedback_html": render_markdown(answer.ai_feedback or ""),
-        "model": answer.ai_model,
-    }
+    return _review_result(answer)
 
 
 @router.post("/attempts/{attempt_id}/delete")

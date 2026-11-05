@@ -166,3 +166,29 @@ def test_review_page_when_llm_unreachable(client) -> None:
     response = client.get(f"/attempts/{attempt_id}")
     assert response.status_code == 200
     assert "data-ai-run" not in response.text and "data-ai-review" in response.text
+
+
+def test_ai_review_streams_ndjson_and_stores_result(client) -> None:
+    import json
+
+    attempt_id, answer_id = _finished_attempt(client, rubric=RUBRIC)
+    client.app.state.llm = FakeLLM({"scores": [2, 3], "feedback": "Fehlt etwas"})
+    response = client.post(_url(attempt_id, answer_id) + "?stream=1", json={})
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("application/x-ndjson")
+    items = [json.loads(line) for line in response.text.splitlines()]
+    assert items[0] == {"kind": "meta", "text": "fake (fake)"}
+    assert any(item.get("kind") == "output" for item in items)
+    assert items[-1]["result"]["scores"] == [2, 3]
+    with db(client) as session:
+        assert session.get(Answer, answer_id).ai_feedback == "Fehlt etwas"
+
+
+def test_ai_review_stream_reports_errors_in_band(client) -> None:
+    import json
+
+    attempt_id, answer_id = _finished_attempt(client)
+    client.app.state.llm = FakeLLM(LLMError("cannot reach the LLM"))
+    response = client.post(_url(attempt_id, answer_id) + "?stream=1", json={})
+    items = [json.loads(line) for line in response.text.splitlines()]
+    assert items[-1] == {"error": "cannot reach the LLM"}
