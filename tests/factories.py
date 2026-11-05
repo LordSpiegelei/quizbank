@@ -53,3 +53,33 @@ def upload(client, *files: tuple[str, bytes | str]):
 def db(client) -> Session:
     """A session on the test app's database."""
     return Session(client.app.state.engine)
+
+
+class FakeLLM:
+    """Stands in for `LLMClient`: replies are queued, calls are recorded."""
+
+    default_model = "fake"
+
+    def __init__(self, *replies, models=("fake", "other"), vision=False, context_tokens=8192):
+        self.replies = list(replies)
+        self.models = models if isinstance(models, Exception) else list(models)
+        self.calls: list[dict] = []
+        self.vision = vision
+        self.context_tokens = context_tokens
+
+    def list_models(self) -> list[str]:
+        if isinstance(self.models, Exception):
+            raise self.models
+        return self.models
+
+    def model_info(self, model: str):
+        from app.llm import ModelInfo
+
+        return ModelInfo(self.vision, self.context_tokens)
+
+    def chat(self, model, messages, json_schema=None):
+        self.calls.append({"model": model, "messages": messages, "schema": json_schema})
+        reply = self.replies.pop(0)
+        if isinstance(reply, Exception):
+            raise reply
+        return reply

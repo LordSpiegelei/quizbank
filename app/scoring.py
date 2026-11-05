@@ -50,6 +50,11 @@ def score_choice(
     return AnswerScore(0, points, False)
 
 
+def needs_review(question_type: str) -> bool:
+    """Types without an answer key: a person (or, as a suggestion, an LLM) has to assess them."""
+    return question_type == "open"
+
+
 def score_open(points: float, self_score: float | None) -> AnswerScore:
     """open: the self-assessed rubric total, clamped to 0..points."""
     if self_score is None:

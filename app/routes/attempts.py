@@ -1,6 +1,6 @@
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Form, HTTPException, Request, Response
+from fastapi import APIRouter, Depends, Form, HTTPException, Request, Response
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, ConfigDict
 from sqlmodel import Session
@@ -22,10 +22,13 @@ from app.attempts import (
 from app.db import SessionDep, get_or_404
 from app.forms import optional_number
 from app.learning import FLAGS
+from app.llm import LLMClient, LLMError, get_llm
 from app.markdown import render_markdown, render_markdown_inline
 from app.models import Answer, Attempt, Exam, Question, utcnow
 from app.queries import live_questions
+from app.review import ai_review
 from app.routes.exams import exam_page
+from app.scoring import needs_review
 from app.templating import redirect, render
 
 router = APIRouter()
@@ -200,9 +203,22 @@ def attempt_review(request: Request, session: SessionDep, attempt_id: int):
     return _review_page(request, session, attempt)
 
 
+def _llm_models(request: Request, attempt: Attempt) -> list[str] | None:
+    """Models offered for AI review; None when there is no LLM or nothing to review, an empty
+    list when the server cannot be reached."""
+    llm = request.app.state.llm
+    if llm is None or not any(needs_review(a.snapshot["type"]) for a in attempt.answers):
+        return None
+    try:
+        return llm.list_models()
+    except LLMError:
+        return []
+
+
 def _review_page(
     request: Request, session: Session, attempt: Attempt, status_code: int = 200, **extra
 ) -> HTMLResponse:
+    llm = request.app.state.llm
     return render(
         request,
         "review.html",
@@ -211,6 +227,8 @@ def _review_page(
         exam=attempt.exam,
         items=review_items(attempt),
         questions=live_questions(session, attempt),
+        llm_models=_llm_models(request, attempt),
+        llm_default=llm.default_model if llm else None,
         **extra,
     )
 
@@ -234,6 +252,40 @@ def self_assess_form(
         return _review_page(request, session, attempt, status_code=422, error=error)
     fragment = f"q{answer.position + 1}"
     return redirect(request, "attempt_review", fragment=fragment, attempt_id=attempt.id)
+
+
+class AIReviewIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    model: str | None = None
+
+
+@router.post("/api/attempts/{attempt_id}/answers/{answer_id}/ai-review", name="ai_review_api")
+def ai_review_api(
+    request: Request,
+    session: SessionDep,
+    llm: Annotated[LLMClient, Depends(get_llm)],
+    attempt_id: int,
+    answer_id: int,
+    body: AIReviewIn,
+):
+    """Suggest scores and feedback for an answer; the user still confirms them by saving."""
+    attempt, answer = _attempt_answer(session, attempt_id, answer_id)
+    model = body.model or llm.default_model
+    if not model:
+        raise HTTPException(status_code=422, detail=request.app.state.t("ai.no_model"))
+    if attempt.finished_at is None:
+        raise HTTPException(status_code=409, detail="review after submitting")
+    try:
+        ai_review(session, llm, model, attempt, answer, request.app.state.settings.app_lang)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from None
+    except LLMError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from None
+    return {
+        "scores": answer.ai_scores,
+        "feedback_html": render_markdown(answer.ai_feedback or ""),
+        "model": answer.ai_model,
+    }
 
 
 @router.post("/attempts/{attempt_id}/delete")

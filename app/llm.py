@@ -22,6 +22,10 @@ class LLMError(Exception):
     """The LLM is unreachable or answered something unusable; `str()` is shown to the user."""
 
 
+class LLMReplyError(LLMError):
+    """The server answered, but not with usable content: worth one retry with a hint."""
+
+
 @dataclass(frozen=True)
 class ModelInfo:
     vision: bool
@@ -63,7 +67,7 @@ class LLMClient:
         return response
 
     def list_models(self) -> list[str]:
-        data = self._request("GET", "/v1/models").json()
+        data = self._request("GET", "/v1/models", timeout=10).json()
         return sorted(model["id"] for model in data.get("data", []))
 
     def model_info(self, model: str) -> ModelInfo:
@@ -106,14 +110,14 @@ class LLMClient:
         try:
             content = data["choices"][0]["message"]["content"]
         except (KeyError, IndexError, TypeError) as exc:
-            raise LLMError("unexpected response from the LLM") from exc
+            raise LLMReplyError("unexpected response from the LLM") from exc
         content = _THINK_RE.sub("", content or "").strip()
         if json_schema is None:
             return content
         try:
             return json.loads(content)
         except ValueError as exc:
-            raise LLMError("the LLM did not return valid JSON") from exc
+            raise LLMReplyError("the LLM did not return valid JSON") from exc
 
 
 def get_llm(request: Request) -> LLMClient:

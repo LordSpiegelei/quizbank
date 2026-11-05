@@ -16,6 +16,7 @@ from app.queries import live_questions
 from app.schemas import QUESTION_FIELDS, MultipleScoring
 from app.scoring import (
     AnswerScore,
+    needs_review,
     score_question,
     self_score_from,
     summarize,
@@ -351,7 +352,7 @@ def self_assess(session: Session, attempt: Attempt, answer: Answer, scores: list
     snap = answer.snapshot
     if attempt.finished_at is None:
         raise ValueError("assess after submitting")
-    if snap["type"] != "open":
+    if not needs_review(snap["type"]):
         raise ValueError("only open questions are self-assessed")
     total = self_score_from(snap["points"], snap["rubric"], scores)
 

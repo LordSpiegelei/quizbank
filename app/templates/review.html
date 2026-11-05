@@ -59,6 +59,32 @@
         {% else %}<p class="muted"><em>{{ t("review.no_answer") }}</em></p>{% endif %}
         {% if q.model_answer %}<h4>{{ t("review.model_answer") }}</h4>{{ q.model_answer | md }}{% endif %}
 
+        {% if llm_models is not none %}
+        <section class="ai-review" data-ai-review="{{ path('ai_review_api', attempt_id=attempt.id, answer_id=answer.id) }}"
+                 data-busy="{{ t('ai.running') }}" data-failed="{{ t('ai.failed') }}" data-applied="{{ t('ai.applied') }}"
+                 {% if answer.ai_scores %}data-scores="{{ answer.ai_scores | tojson | forceescape }}"{% endif %}>
+          <h4>{{ icon("sparkles") }}{{ t("ai.title") }}</h4>
+          {% if llm_models %}
+          <p class="ai-controls">
+            <select name="model" aria-label="{{ t('ai.model') }}">
+              {% for name in llm_models %}
+              <option value="{{ name }}" {{ 'selected' if name == (answer.ai_model or llm_default) }}>{{ name }}</option>
+              {% endfor %}
+            </select>
+            <button type="button" class="btn-quiet" data-ai-run>{{ t("ai.run") if not answer.ai_feedback else t("ai.rerun") }}</button>
+            {% if answer.ai_scores %}<button type="button" class="btn-quiet" data-ai-apply>{{ t("ai.apply") }}</button>{% endif %}
+          </p>
+          <p class="muted"><small>{{ t("ai.hint") }}</small></p>
+          {% else %}
+          <p class="muted">{{ t("ai.unreachable") }}</p>
+          {% endif %}
+          <div class="ai-feedback" aria-live="polite">
+            {% if answer.ai_feedback %}{{ answer.ai_feedback | md }}
+            <p class="muted"><small>{{ t("ai.by", model=answer.ai_model, when=answer.ai_reviewed_at | dt) }}</small></p>{% endif %}
+          </div>
+        </section>
+        {% endif %}
+
         <form method="post" class="assess" action="{{ path('self_assess_form', attempt_id=attempt.id, answer_id=answer.id) }}">
           <h4>{{ t("assess.title") }}</h4>
           {% if q.rubric %}

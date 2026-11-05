@@ -550,3 +550,11 @@ form.assess output { font-variant-numeric: tabular-nums; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition: none !important; animation: none !important; }
 }
+
+/* AI review suggestion above the self-assessment form */
+.ai-review { margin: 1.25rem 0 0; padding: 1rem 1.25rem; border: 1px dashed var(--border, currentColor); border-radius: var(--radius); }
+.ai-review h4 { margin-top: 0; }
+.ai-controls { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; margin: 0 0 .5rem; }
+.ai-controls select { width: auto; max-width: 100%; margin: 0; }
+.ai-review[aria-busy="true"] .ai-feedback { opacity: .6; }
+.ai-review .ai-error { color: var(--danger, inherit); font-weight: 600; }

@@ -169,6 +169,11 @@ class Answer(SQLModel, table=True):
     self_score: float | None = None
     revealed: bool = False
     is_correct: bool | None = None
+    # Optional LLM suggestion for questions that need review; never counts as the score.
+    ai_feedback: str | None = None
+    ai_scores: list[float] | None = Field(default=None, sa_type=JSON)
+    ai_model: str | None = None
+    ai_reviewed_at: datetime | None = None
 
     attempt: Attempt = Relationship(back_populates="answers")
     question: Question | None = Relationship(back_populates="answers")

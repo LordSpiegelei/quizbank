@@ -79,4 +79,52 @@
       button.textContent = button.dataset.done;
     });
   }
+  // AI review: fetch a suggestion, show the feedback and prefill the self-assessment form
+  // below (the user still saves it).
+  for (const box of document.querySelectorAll("[data-ai-review]")) {
+    const form = box.parentElement.querySelector("form.assess");
+    const feedback = box.querySelector(".ai-feedback");
+    const apply = (scores) => {
+      const inputs = form.querySelectorAll('input[name="rubric"], input[name="self_score"]');
+      inputs.forEach((input, i) => {
+        if (scores[i] === undefined) return;
+        input.value = scores[i];
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+    };
+    box.querySelector("[data-ai-apply]")?.addEventListener("click", () => apply(JSON.parse(box.dataset.scores)));
+    box.querySelector("[data-ai-run]")?.addEventListener("click", async (event) => {
+      const button = event.currentTarget;
+      const label = button.textContent;
+      button.disabled = true;
+      button.textContent = box.dataset.busy;
+      box.setAttribute("aria-busy", "true");
+      try {
+        const response = await fetch(box.dataset.aiReview, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ model: box.querySelector("select[name=model]").value }),
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(typeof data.detail === "string" ? data.detail : "");
+        box.dataset.scores = JSON.stringify(data.scores);
+        feedback.innerHTML = data.feedback_html;
+        apply(data.scores);
+        const note = document.createElement("p");
+        note.className = "muted";
+        note.textContent = box.dataset.applied;
+        feedback.append(note);
+      } catch (error) {
+        feedback.textContent = "";
+        const message = document.createElement("p");
+        message.className = "ai-error";
+        message.textContent = [box.dataset.failed, error.message].filter(Boolean).join(" ");
+        feedback.append(message);
+      } finally {
+        button.disabled = false;
+        button.textContent = label;
+        box.removeAttribute("aria-busy");
+      }
+    });
+  }
 })();
