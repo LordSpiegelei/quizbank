@@ -119,6 +119,14 @@ Text fields support **Markdown** (code, tables, emphasis). Math formulas are sho
 | `AUTO_IMPORT` | `true` | Set to `false` to skip the import on start |
 | `PORT` | `8000` | Port inside the container |
 | `APP_LANG` | `en` | UI language: `en` or `de` (a module in `app/locales/`) |
+| `LLM_BASE_URL` | unset | Optional: OpenAI-compatible server, e.g. `http://localhost:11434` for Ollama. Unset = no LLM features |
+| `LLM_MODEL` | unset | Default model (the UI offers all models the server lists) |
+| `LLM_API_KEY` | unset | Bearer token, if the server needs one |
+| `LLM_TIMEOUT` | `300` | Seconds to wait for a reply |
+| `LLM_CAPABILITIES` | unset | e.g. `vision`, for servers that cannot report it (Ollama is probed automatically) |
+| `LLM_CONTEXT_TOKENS` | unset | Context size, for servers that cannot report it (default 8192) |
+
+Inside Docker, `localhost` is the container. To reach Ollama on the host, use `LLM_BASE_URL=http://host.docker.internal:11434` (on Linux add `extra_hosts: ["host.docker.internal:host-gateway"]` to the compose service).
 
 Database migrations run automatically on start. To back up, copy `data/quizbank.db` while the app is stopped.
 

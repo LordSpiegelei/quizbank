@@ -10,10 +10,10 @@ Focus: single/multiple choice with automatic scoring, a realistic exam simulatio
 Core features: topic and tag filters, source references per question, explanations (overall and per option), attempt history per exam, a persistent wrong-answer pool per exam.
 
 ### Non-goals
-- No AI grading inside the app (free text is compared with the model answer, or pasted into a chat via "copy for Claude")
+- No mandatory or cloud AI: LLM support is **optional** and only talks to a local/self-hosted OpenAI-compatible server (`LLM_BASE_URL`, e.g. Ollama). The AI only *suggests* (review scores prefill the self-assessment, generated exams are drafts you review); without `LLM_BASE_URL` the app behaves as before and "copy for Claude" remains
 - No login and no user management: **one user per instance** (one SQLite file). Several users = several instances with their own `./data`
 - No runtime language switching: the UI language is fixed per instance (`APP_LANG`, default `en`, `de` available)
-- No PDF import, only structured JSON
+- No PDF import, only structured JSON (the exam builder also takes no PDFs: text files and, with a vision model, images)
 - No MCP server, no CLI
 
 Planned and possible work lives in [ROADMAP.md](ROADMAP.md).
@@ -27,6 +27,7 @@ Planned and possible work lives in [ROADMAP.md](ROADMAP.md).
 | Frontend | **Jinja2** templates for regular pages, **Alpine.js** for the quiz page (questions as JSON, answers saved via `fetch`). No HTMX, no build step |
 | Styling | Hand-written CSS design system in `app/static/app.css` (tokens with `light-dark()`, light/dark via `data-theme`), **Atkinson Hyperlegible Next/Mono** fonts vendored in `app/static/vendor/fonts/`, Lucide icons as sprite `app/static/icons.svg` |
 | Charts | CSS bars and an SVG line from Jinja macros, no chart library |
+| LLM (optional) | `app/llm.py`: `httpx2` client for an OpenAI-compatible API, capability probe via Ollama `/api/show`; injected through the `get_llm` dependency, faked in tests |
 | Content | **Markdown** (markdown-it-py, sanitized with nh3) in questions, scenarios, options and explanations |
 | Validation | Pydantic models for the import JSON, exported as `schema/exam.schema.json` |
 | Packaging | **uv** (`pyproject.toml` + `uv.lock`) |
@@ -190,4 +191,4 @@ Rules:
 - After changing `app/schemas.py`, regenerate `schema/exam.schema.json`
 - Before committing: `uv run ruff check . && uv run ruff format --check . && uv run pytest`
 - Never commit exam files based on copyrighted course material: `questions/` and `data/` are gitignored. Examples in `examples/` must be neutral and self-written
-- Configuration via env vars: `DB_PATH` (default `./data/quizbank.db`), `PORT` (`8000`), `QUESTIONS_DIR` (`./questions`), `AUTO_IMPORT` (`true`), `APP_LANG` (`en`)
+- Configuration via env vars: `DB_PATH` (default `./data/quizbank.db`), `PORT` (`8000`), `QUESTIONS_DIR` (`./questions`), `AUTO_IMPORT` (`true`), `APP_LANG` (`en`); optional LLM: `LLM_BASE_URL` (unset = off), `LLM_MODEL`, `LLM_API_KEY`, `LLM_TIMEOUT` (`300`), `LLM_CAPABILITIES` (e.g. `vision`), `LLM_CONTEXT_TOKENS`

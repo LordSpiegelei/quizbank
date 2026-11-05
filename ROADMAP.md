@@ -14,6 +14,10 @@
 - Keyboard control, light/dark theme, English and German UI
 - Docker image for amd64 and arm64 on GHCR
 
+## In progress
+
+- Optional local-LLM support (Ollama or any OpenAI-compatible server): AI review of open answers as a suggestion for the self-assessment, and an exam builder in the web UI
+
 ## Ideas
 
 - Math rendering with KaTeX (`$…$` and `$$…$$`), vendored like the other front-end assets
@@ -23,6 +27,5 @@ Suggestions are welcome as GitHub issues.
 ## Not planned
 
 - Login or multiple users per instance (run one instance per person instead)
-- AI grading inside the app
 - Importing PDFs or other unstructured material
 - Switching the UI language at runtime

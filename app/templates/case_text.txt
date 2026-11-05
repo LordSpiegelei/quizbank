@@ -1,5 +1,5 @@
 {#- An open question with the user's answer, to paste into a Claude chat for grading
-    (no AI grading inside the app). Plain text; autoescaping is right inside <textarea>. -#}
+    (for any chat; the optional built-in AI review is separate). Plain text; autoescaping is right inside <textarea>. -#}
 {{ t("case.prompt") }}
 
 ## {{ t("case.task", n=q.points | num) }}

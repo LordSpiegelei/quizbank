@@ -16,7 +16,9 @@ from app.queries import nav_courses
 TEMPLATE_DIR = Path(__file__).resolve().parent / "templates"
 
 
-def make_templates(t: Translator, url_path_for: Callable[..., Any]) -> Jinja2Templates:
+def make_templates(
+    t: Translator, url_path_for: Callable[..., Any], llm_enabled: bool = False
+) -> Jinja2Templates:
     templates = Jinja2Templates(directory=TEMPLATE_DIR)
     decimal_sep = t("format.decimal_sep")
     datetime_format = t("format.datetime")
@@ -43,6 +45,7 @@ def make_templates(t: Translator, url_path_for: Callable[..., Any]) -> Jinja2Tem
 
     templates.env.globals["t"] = t
     templates.env.globals["path"] = path
+    templates.env.globals["llm_enabled"] = llm_enabled
     templates.env.globals["flags"] = FLAGS
     templates.env.globals["flag_icons"] = {"starred": "star", "disabled": "eye-off"}
     templates.env.globals["letters"] = "ABCDEFGHIJ"  # option labels; quiz.js has the same

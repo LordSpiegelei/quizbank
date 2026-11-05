@@ -11,6 +11,7 @@ from starlette.concurrency import run_in_threadpool
 from app.config import Settings
 from app.db import make_engine, run_migrations
 from app.importer import import_directory
+from app.llm import LLMClient
 from app.locales import get_translator
 from app.routes import attempts, courses, exams, questions
 from app.templating import make_templates
@@ -40,8 +41,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app = FastAPI(title="quizbank", lifespan=lifespan)
     app.state.settings = settings
     app.state.t = get_translator(settings.app_lang)
+    app.state.llm = LLMClient(settings) if settings.llm_enabled else None
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
-    app.state.templates = make_templates(app.state.t, app.url_path_for)  # after the static mount
+    app.state.templates = make_templates(
+        app.state.t, app.url_path_for, settings.llm_enabled
+    )  # after the static mount
     app.include_router(courses.router)
     app.include_router(exams.router)
     app.include_router(attempts.router)
