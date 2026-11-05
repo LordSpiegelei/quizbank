@@ -265,6 +265,102 @@ def generate_batch(
     raise GenerationError(f"the LLM gave no usable questions ({problems[0]})", problems)
 
 
+TYPE_DESCRIPTIONS = {
+    "single": "single choice, exactly one correct option",
+    "multiple": "multiple choice, one or more correct options",
+    "open": "open case-study question, answered in free text",
+}
+
+
+def outline_schema(counts: dict[str, int | None], total: int | None) -> dict[str, Any]:
+    kinds = [kind for kind, count in counts.items() if count != 0]
+    items: dict[str, Any] = {"type": "array", "minItems": total or 1}
+    items["maxItems"] = total or MAX_QUESTIONS
+    items["items"] = {
+        "type": "object",
+        "properties": {"type": {"type": "string", "enum": kinds}, "topic": {"type": "string"}},
+        "required": ["type", "topic"],
+    }
+    return {"type": "object", "properties": {"questions": items}, "required": ["questions"]}
+
+
+def normalize_outline(
+    reply: Any, counts: dict[str, int | None], total: int | None
+) -> list[dict[str, Any]]:
+    """Plan slots from an outline reply, with the user's fixed numbers enforced: fixed types get
+    exactly their count (padded or trimmed), excluded types (0) are dropped, the free types
+    share what is left of a fixed total. Ordered by type, like a fixed plan. Raises ValueError
+    when nothing usable is left."""
+    items = reply.get("questions") if isinstance(reply, dict) else None
+    if not isinstance(items, list):
+        raise ValueError('reply must be {"questions": [ ... ]}')
+    entries = [
+        {"type": item["type"], "topic": str(item.get("topic") or "").strip() or None}
+        for item in items
+        if isinstance(item, dict) and counts.get(item.get("type"), 0) != 0
+    ]
+    fixed = sum(n for n in counts.values() if n is not None)
+    free_kinds = [kind for kind, count in counts.items() if count is None]
+    free_budget = (total - fixed) if total is not None else MAX_QUESTIONS - fixed
+
+    slots: list[dict[str, Any]] = []
+    for kind in QUESTION_TYPES:
+        count = counts[kind]
+        mine = [e for e in entries if e["type"] == kind]
+        if count is not None:
+            fill = mine[:count]
+            topics = [e["topic"] for e in fill or entries] or [None]
+            fill += [
+                {"type": kind, "topic": topics[i % len(topics)]} for i in range(count - len(fill))
+            ]
+            slots += fill
+    free = [e for e in entries if e["type"] in free_kinds][: max(free_budget, 0)]
+    if total is not None and free_kinds:
+        topics = [e["topic"] for e in entries] or [None]
+        missing = free_budget - len(free)
+        free += [
+            {"type": free_kinds[i % len(free_kinds)], "topic": topics[i % len(topics)]}
+            for i in range(missing)
+        ]
+    slots += free
+    if not slots:
+        raise ValueError("the outline contains no usable questions")
+    order = {kind: n for n, kind in enumerate(QUESTION_TYPES)}
+    return sorted(slots, key=lambda slot: order[slot["type"]])
+
+
+def outline(
+    llm: LLMClient, model: str, params: dict[str, Any], material: Material
+) -> list[dict[str, Any]]:
+    """Let the model decide what the user left open; returns the plan. One repair retry."""
+    counts, total = params["counts"], params["total"]
+    prompt = render_prompt(
+        "outline.txt",
+        counts=counts,
+        total=total,
+        max=MAX_QUESTIONS,
+        descriptions=TYPE_DESCRIPTIONS,
+        topics=params.get("topics") or [],
+        instructions=params.get("instructions") or "",
+        material=material.text,
+        images=material.images,
+    )
+    messages = [_user_message(prompt, material.images)]
+    problem = ""
+    for _ in range(2):
+        reply = None
+        try:
+            reply = llm.chat(model, messages, outline_schema(counts, total), reserve_tokens=4096)
+            return normalize_outline(reply, counts, total)
+        except (LLMReplyError, ValueError) as exc:
+            problem = str(exc)
+        if reply is not None:
+            messages = [*messages, {"role": "assistant", "content": json.dumps(reply)}]
+        hint = f"That reply is unusable: {problem}. Reply again with valid JSON only."
+        messages = [*messages, {"role": "user", "content": hint}]
+    raise GenerationError(f"the LLM gave no usable outline ({problem})", [problem])
+
+
 def load_images(directory: Path, names: list[str]) -> list[tuple[str, bytes]]:
     files = [(name, directory / name) for name in names]
     return [(name, path.read_bytes()) for name, path in files if path.is_file()]

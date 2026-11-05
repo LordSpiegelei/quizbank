@@ -12,7 +12,9 @@ from starlette.concurrency import run_in_threadpool
 from starlette.datastructures import UploadFile
 
 from app.builder import (
+    BATCH_SIZE,
     MAX_QUESTIONS,
+    QUESTION_TYPES,
     MaterialError,
     accepted_extensions,
     check_context,
@@ -39,7 +41,7 @@ from app.templating import redirect, render
 router = APIRouter()
 LlmDep = Annotated[LLMClient, Depends(get_llm)]
 
-DEFAULT_FORM = {"single": "10", "multiple": "0", "open": "0", "options": "4"}
+DEFAULT_FORM: dict[str, str] = {}  # blank fields: the AI decides
 
 
 def get_jobs(request: Request) -> JobRunner:
@@ -128,11 +130,18 @@ def _parse_params(session: Session, form: dict[str, str]) -> dict[str, Any]:
     title = form["title"].strip()
     if not title:
         raise FormError("builder.err_title")
-    single, multiple, open_ = (_number(form[k], int, 0) for k in ("single", "multiple", "open"))
-    if not 1 <= single + multiple + open_ <= MAX_QUESTIONS:
+    # A number fixes a count, blank leaves it to the AI (via an outline), 0 excludes a type.
+    counts = {kind: optional_number(form[kind], int) for kind in QUESTION_TYPES}
+    total = optional_number(form["total"], int)
+    fixed = sum(n for n in counts.values() if n is not None)
+    if all(n is not None for n in counts.values()):
+        total = fixed
+    if (total is not None and not 1 <= total <= MAX_QUESTIONS) or fixed > MAX_QUESTIONS:
         raise FormError("builder.err_count", max=MAX_QUESTIONS)
-    options = _number(form["options"], int, 4)
-    if not MIN_OPTIONS <= options <= MAX_OPTIONS:
+    if total is not None and total < fixed:
+        raise FormError("builder.err_total", fixed=fixed)
+    options = optional_number(form["options"], int)
+    if options is not None and not MIN_OPTIONS <= options <= MAX_OPTIONS:
         raise FormError("builder.err_options", min=MIN_OPTIONS, max=MAX_OPTIONS)
     if _exists(session, course, title):
         raise FormError("builder.err_exists", title=title)
@@ -140,9 +149,8 @@ def _parse_params(session: Session, form: dict[str, str]) -> dict[str, Any]:
     return {
         "course": course,
         "title": title,
-        "single": single,
-        "multiple": multiple,
-        "open": open_,
+        "counts": counts,
+        "total": total,
         "options": options,
         "topics": [line.strip() for line in form["topics"].splitlines() if line.strip()],
         "language": form["language"].strip() or "en",
@@ -152,7 +160,8 @@ def _parse_params(session: Session, form: dict[str, str]) -> dict[str, Any]:
         if scoring in ("all_or_nothing", "partial")
         else "all_or_nothing",
         "instructions": form["instructions"].strip(),
-        "plan": plan_slots(plan_types(single, multiple, open_)),
+        # With everything fixed the plan is known now; otherwise the job outlines it first.
+        "plan": plan_slots(plan_types(*counts.values())) if total == fixed else None,
     }
 
 
@@ -163,6 +172,7 @@ FORM_FIELDS = [
     "single",
     "multiple",
     "open",
+    "total",
     "options",
     "topics",
     "language",
@@ -199,7 +209,9 @@ def _create_job(
     except LLMError as exc:
         return _builder_page(request, session, llm, 422, form=form, error=str(exc))
 
-    job = GenerationJob(params=params, model=model, material_text=source.text, total=_total(params))
+    job = GenerationJob(
+        params=params, model=model, material_text=source.text, total=params["total"] or 0
+    )
     session.add(job)
     session.commit()
     if source.images:
@@ -217,7 +229,8 @@ def _create_job(
 
 
 def _total(params: dict[str, Any]) -> int:
-    return params["single"] + params["multiple"] + params["open"]
+    """Questions to reserve output room for; unknown (AI decides) counts as a full batch."""
+    return params["total"] or BATCH_SIZE
 
 
 @router.post("/builder")

@@ -36,18 +36,22 @@
     <h3>{{ t("builder.mix") }}</h3>
     <div class="fields">
       <label class="field">{{ t("builder.single") }}
-        <input type="number" name="single" min="0" max="100" value="{{ form.single }}">
+        <input type="number" name="single" min="0" max="100" value="{{ form.single }}" placeholder="{{ t('builder.ai_decides') }}">
       </label>
       <label class="field">{{ t("builder.multiple") }}
-        <input type="number" name="multiple" min="0" max="100" value="{{ form.multiple }}">
+        <input type="number" name="multiple" min="0" max="100" value="{{ form.multiple }}" placeholder="{{ t('builder.ai_decides') }}">
       </label>
       <label class="field">{{ t("builder.open") }}
-        <input type="number" name="open" min="0" max="100" value="{{ form.open }}">
+        <input type="number" name="open" min="0" max="100" value="{{ form.open }}" placeholder="{{ t('builder.ai_decides') }}">
+      </label>
+      <label class="field">{{ t("builder.total") }}
+        <input type="number" name="total" min="1" max="100" value="{{ form.total }}" placeholder="{{ t('builder.ai_decides') }}">
       </label>
       <label class="field">{{ t("builder.options") }}
-        <input type="number" name="options" min="2" max="10" value="{{ form.options }}">
+        <input type="number" name="options" min="2" max="10" value="{{ form.options }}" placeholder="{{ t('builder.ai_decides') }}">
       </label>
     </div>
+    <p class="muted"><small>{{ t("builder.free_hint") }}</small></p>
     <label>{{ t("builder.topics") }}
       <textarea name="topics" rows="3">{{ form.topics }}</textarea>
       <small>{{ t("builder.topics_hint") }}</small>

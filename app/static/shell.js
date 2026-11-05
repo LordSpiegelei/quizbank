@@ -135,8 +135,9 @@
     const hint = builder.querySelector("[data-accept-hint]");
     const imageTypes = builder.dataset.imageTypes.split(",");
     const reserve = () => {
-      const count = ["single", "multiple", "open"].reduce((n, k) => n + (Number(builder.elements[k].value) || 0), 0);
-      return 1500 + Math.min(count, 5) * 600;
+      const fields = ["single", "multiple", "open"].map((k) => builder.elements[k].value.trim());
+      const count = fields.includes("") ? 5 : fields.reduce((n, v) => n + (Number(v) || 0), 0);
+      return 1500 + Math.min(count, 5) * 600;  // blank = the AI decides: assume a full batch
     };
     let context = Number(builder.dataset.context) || 0;
     const update = () => {

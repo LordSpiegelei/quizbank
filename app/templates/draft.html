@@ -7,7 +7,7 @@
 {# shell.js polls the status while something runs and reloads when it changes. #}
 <section class="draft-status" {% if job.busy or job.regenerating %}data-draft-poll="{{ path('draft_status', job_id=job.id) }}" data-version="{{ job.updated_at.isoformat() }}"{% endif %}>
   <p><mark class="status">{{ t("draft.status." ~ job.status) }}</mark>
-    {{ t("draft.progress", done=job.progress, total=job.total) }}</p>
+    {% if job.status == "running" and not job.total %}{{ t("draft.planning") }}{% else %}{{ t("draft.progress", done=job.progress, total=job.total) }}{% endif %}</p>
   {% if job.busy %}<progress max="{{ job.total or 1 }}" value="{{ job.progress }}"></progress>{% endif %}
   {% if job.errors %}
   <div class="notice error" role="alert">

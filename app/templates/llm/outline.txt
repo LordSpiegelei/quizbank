@@ -1,0 +1,35 @@
+{% if material %}
+Material:
+"""
+{{ material }}
+"""
+
+{% endif %}
+You plan a mock exam{{ " on the material above" if material else "" }}. Do not write the questions yet: list one entry per question with its "type" and "topic".
+{% if not material and not images %}
+(No material was provided: use general knowledge of the topics.)
+{% endif %}
+
+Rules:
+{% if total %}
+- Exactly {{ total }} questions in total.
+{% else %}
+- Choose the number of questions the material deserves for a realistic exam (at most {{ max }}).
+{% endif %}
+{% for kind, count in counts.items() %}
+{% if count is none %}
+- Type "{{ kind }}": as many as fit the material ({{ descriptions[kind] }}).
+{% elif count %}
+- Type "{{ kind }}": exactly {{ count }} ({{ descriptions[kind] }}).
+{% endif %}
+{% endfor %}
+{% if topics %}
+- "topic" is one of: {{ topics | join("; ") }}. Spread the questions across them.
+{% else %}
+- "topic" is a short main topic from the material; use a handful of topics, each several times.
+{% endif %}
+{% if instructions %}
+- Extra instructions: {{ instructions }}
+{% endif %}
+
+Reply with JSON only: {"questions": [{"type": ..., "topic": ...}, ...]}.

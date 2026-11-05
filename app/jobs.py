@@ -21,7 +21,9 @@ from app.builder import (
     Material,
     generate_batch,
     load_images,
+    outline,
     plan_slots,
+    plan_types,
 )
 from app.llm import LLMClient, LLMError
 from app.models import GenerationJob, utcnow
@@ -180,15 +182,40 @@ class JobRunner:
                 return
             params, model, material = job.params, job.model, self._material(job)
             draft = job.draft or new_draft(params)
-            remaining = list(params["plan"])
+            if "counts" not in params:  # a draft from before free mode: fixed counts only
+                types = plan_types(params["single"], params["multiple"], params["open"])
+                params = params | {
+                    "counts": dict(
+                        zip(
+                            ("single", "multiple", "open"),
+                            (params["single"], params["multiple"], params["open"]),
+                            strict=True,
+                        )
+                    ),
+                    "total": len(types),
+                    "plan": plan_slots(types[len(draft["questions"]) :]),
+                }
+                job.params = params
             job.status, job.errors = "running", []
             job.progress = len(draft["questions"])
-            job.total = job.progress + len(remaining)
             job.updated_at = utcnow()
             session.add(job)
             session.commit()
 
         llm = self._llm()
+        if params.get("plan") is None:  # something was left to the AI: outline it first
+            try:
+                plan = outline(llm, model, params, material)
+            except GenerationError as exc:
+                self._fail(job_id, None, [str(exc), *exc.errors[:3]])
+                return
+            except LLMError as exc:
+                self._fail(job_id, None, [str(exc)])
+                return
+            params = {**params, "plan": plan}
+            self._set(job_id, params=params, total=len(plan))
+        remaining = list(params["plan"])
+        self._set(job_id, total=len(draft["questions"]) + len(remaining))
         while remaining:
             with Session(self.engine) as session:
                 job = session.get(GenerationJob, job_id)

@@ -386,3 +386,68 @@ def test_builder_preselects_env_default_and_flags_missing_one(llm_client) -> Non
     llm_client.app.state.llm = FakeLLM(models=("a-model", "z-model"))
     page = llm_client.get("/builder").text
     assert '<option value="a-model" selected' in page and "LLM_MODEL" in page
+
+
+def outline_reply(*kinds: str, topic: str = "Thema") -> dict:
+    return {"questions": [{"type": k, "topic": topic} for k in kinds]}
+
+
+def test_free_mode_outlines_then_generates(llm_client) -> None:
+    llm = llm_client.app.state.llm = FakeLLM(
+        outline_reply("open", "single", "single"), reply("single", "single", "open")
+    )
+    create(llm_client, single="", multiple="", open="", options="")
+    job = job_of(llm_client)
+    assert job.status == "done" and job.total == 3
+    assert [q["type"] for q in job.draft["questions"]] == ["single", "single", "open"]
+    first = llm.calls[0]
+    assert "Do not write the questions yet" in first["messages"][0]["content"]
+    assert first["schema"]["properties"]["questions"]["maxItems"] == 100
+    assert "2-10 (as the question needs)" in llm.calls[1]["messages"][0]["content"]
+
+
+def test_free_mode_with_fixed_total_and_one_fixed_type(llm_client) -> None:
+    # the outline ignores the rules: 1 open instead of 2, plus an excluded multiple
+    llm = llm_client.app.state.llm = FakeLLM(
+        outline_reply("open", "multiple", "single", "single", "single", "single"),
+        reply("single", "single", "single", "open", "open"),
+    )
+    create(llm_client, single="", multiple="0", open="2", total="5")
+    job = job_of(llm_client)
+    assert job.status == "done"
+    assert [q["type"] for q in job.draft["questions"]] == ["single"] * 3 + ["open"] * 2
+    schema = llm.calls[0]["schema"]["properties"]["questions"]
+    assert schema["minItems"] == schema["maxItems"] == 5
+    assert schema["items"]["properties"]["type"]["enum"] == ["single", "open"]
+
+
+def test_outline_unusable_fails_job(llm_client) -> None:
+    llm_client.app.state.llm = FakeLLM({"nope": 1}, outline_reply("multiple"))
+    create(llm_client, single="", multiple="0", open="0")
+    job = job_of(llm_client)
+    assert job.status == "failed" and "outline" in job.errors[0]
+
+
+def test_total_below_fixed_counts_is_refused(llm_client) -> None:
+    response = create(llm_client, single="4", multiple="", open="", total="2")
+    assert response.status_code == 422
+
+
+def test_all_fixed_needs_no_outline(llm_client) -> None:
+    llm = llm_client.app.state.llm = FakeLLM(reply(*FIVE))
+    create(llm_client, total="99")  # ignored: every type is fixed
+    assert job_of(llm_client).total == 5 and len(llm.calls) == 1
+
+
+def test_old_draft_params_are_migrated_on_resume(llm_client) -> None:
+    llm = llm_client.app.state.llm = FakeLLM(reply("single", "open"))
+    params = {
+        "course": "Kurs", "title": "Alt", "single": 1, "multiple": 0, "open": 1,
+        "options": 4, "language": "de",
+    }  # fmt: skip
+    with db(llm_client) as session:
+        session.add(GenerationJob(params=params, model="fake", status="failed"))
+        session.commit()
+    llm_client.post("/builder/drafts/1/retry", follow_redirects=False)
+    job = job_of(llm_client)
+    assert job.status == "done" and len(job.draft["questions"]) == 2 and len(llm.calls) == 1
