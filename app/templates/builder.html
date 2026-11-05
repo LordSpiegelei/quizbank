@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% from "_macros.html" import icon, page_head %}
+{% block title %}{{ t("builder.title") }} – {{ super() }}{% endblock %}
+{% block content %}
+{{ page_head(t("builder.title"), lead=t("builder.lead")) }}
+
+{% if llm_error %}<p class="notice error" role="alert">{{ t("builder.unreachable", error=llm_error) }}</p>{% endif %}
+
+{# shell.js keeps `accept` and the token meter in line with the chosen model. #}
+<form method="post" action="{{ path('builder_create') }}" enctype="multipart/form-data" class="settings builder-form"
+      data-builder data-info-url="{{ path('builder_model_info', model='__model__') }}"
+      data-context="{{ info.context_tokens if info else 0 }}" data-vision="{{ 'true' if info and info.vision else 'false' }}"
+      data-image-types="{{ '.png,.jpg,.jpeg,.webp' }}">
+  <fieldset {{ 'disabled' if llm_error }}>
+    <div class="fields">
+      <label class="field">{{ t("builder.model") }}
+        <select name="model" required>
+          {% for name in models %}<option value="{{ name }}" {{ 'selected' if name == form.model }}>{{ name }}</option>{% endfor %}
+        </select>
+      </label>
+      <label class="field">{{ t("builder.course_existing") }}
+        <select name="course_choice">
+          <option value="">{{ t("builder.course_none") }}</option>
+          {% for name in course_names %}<option value="{{ name }}" {{ 'selected' if name == form.course_choice }}>{{ name }}</option>{% endfor %}
+        </select>
+      </label>
+      <label class="field">{{ t("builder.course_new") }}
+        <input type="text" name="course_new" value="{{ form.course_new }}">
+      </label>
+      <label class="field">{{ t("builder.exam_title") }}
+        <input type="text" name="title" value="{{ form.title }}" required>
+      </label>
+    </div>
+
+    <h3>{{ t("builder.mix") }}</h3>
+    <div class="fields">
+      <label class="field">{{ t("builder.single") }}
+        <input type="number" name="single" min="0" max="100" value="{{ form.single }}">
+      </label>
+      <label class="field">{{ t("builder.multiple") }}
+        <input type="number" name="multiple" min="0" max="100" value="{{ form.multiple }}">
+      </label>
+      <label class="field">{{ t("builder.open") }}
+        <input type="number" name="open" min="0" max="100" value="{{ form.open }}">
+      </label>
+      <label class="field">{{ t("builder.options") }}
+        <input type="number" name="options" min="2" max="10" value="{{ form.options }}">
+      </label>
+    </div>
+    <label>{{ t("builder.topics") }}
+      <textarea name="topics" rows="3">{{ form.topics }}</textarea>
+      <small>{{ t("builder.topics_hint") }}</small>
+    </label>
+
+    <div class="fields">
+      <label class="field">{{ t("builder.language") }}
+        <input type="text" name="language" value="{{ form.language }}">
+      </label>
+      <label class="field">{{ t("builder.time_limit") }}
+        <input type="number" name="time_limit" min="1" value="{{ form.time_limit }}">
+      </label>
+      <label class="field">{{ t("builder.pass_mark") }}
+        <input type="text" inputmode="decimal" name="pass_mark" value="{{ form.pass_mark }}">
+      </label>
+      <label class="field">{{ t("builder.multiple_scoring") }}
+        <select name="multiple_scoring">
+          <option value="all_or_nothing" {{ 'selected' if form.multiple_scoring != 'partial' }}>{{ t("builder.scoring_all") }}</option>
+          <option value="partial" {{ 'selected' if form.multiple_scoring == 'partial' }}>{{ t("builder.scoring_partial") }}</option>
+        </select>
+      </label>
+    </div>
+    <label>{{ t("builder.instructions") }}
+      <textarea name="instructions" rows="2">{{ form.instructions }}</textarea>
+    </label>
+
+    <h3>{{ t("builder.material") }}</h3>
+    <label>{{ t("builder.material_paste") }}
+      <textarea name="material" rows="8">{{ form.material }}</textarea>
+    </label>
+    <label class="dropzone">
+      {{ icon("upload") }}
+      <span>{{ t("builder.files") }}</span>
+      <input type="file" name="files" accept="{{ accept }}" multiple>
+    </label>
+    <p class="muted"><small data-accept-hint data-template="{{ t('builder.files_hint', formats='{formats}') }}">{{ t("builder.files_hint", formats=accept.replace(",", " ")) }}</small></p>
+    <p class="meter" data-meter data-template="{{ t('builder.meter', used='{used}', limit='{limit}') }}" aria-live="polite"></p>
+
+    <button type="submit">{{ icon("sparkles") }}{{ t("builder.generate") }}</button>
+  </fieldset>
+</form>
+
+<h2>{{ t("builder.drafts") }}</h2>
+{% if drafts %}
+<ul class="draft-list">
+  {% for d in drafts %}
+  <li>
+    <a href="{{ path('draft_page', job_id=d.id) }}">{{ d.params.course }} / {{ d.params.title }}</a>
+    <mark class="status">{{ t("draft.status." ~ d.status) }}</mark>
+    <span class="muted">{{ t("draft.progress", done=d.progress, total=d.total) }} · {{ d.created_at | dt }}</span>
+  </li>
+  {% endfor %}
+</ul>
+{% else %}
+<p class="muted">{{ t("builder.no_drafts") }}</p>
+{% endif %}
+{% endblock %}

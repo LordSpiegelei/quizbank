@@ -1,0 +1,44 @@
+You write questions for a mock exam. Base them on the material below.
+{% if not material and not images %}
+(No material was provided: use general knowledge of the topics.)
+{% endif %}
+
+Write exactly {{ types | length }} question{{ "s" if types | length != 1 }}:
+{% for kind, count in counts.items() %}
+- {{ count }} of type "{{ kind }}"{% if kind == "single" %}: {{ options }} options, exactly one correct{% elif kind == "multiple" %}: {{ options }} options, one or more correct{% else %}: an open case-study question with a scenario, a model answer and a rubric{% endif %}
+
+{% endfor %}
+Rules:
+- "type" is "single", "multiple" or "open".
+- "correct" holds 0-based indices into "options"; vary where the correct option sits. Make wrong options plausible (typical mistakes).
+- "explanation" says why the answer is right; for choice questions "option_explanations" has one entry per option.
+- "open" questions: "points" is 5-10, "rubric" lists criteria whose points add up to "points" at most, "model_answer" is a complete answer.
+- "tags": 1-3 keywords. "source": where in the material it comes from, if known.
+- Markdown is allowed in texts. Write all texts in {{ language }}.
+{% if fixed_topic %}
+- Every question has the topic "{{ fixed_topic }}".
+{% elif topics %}
+- "topic" is one of: {{ topics | join("; ") }}. Spread the questions evenly across them.
+{% else %}
+- "topic" is a short main topic derived from the material (3-6 topics overall){% if used_topics %}; topics used so far: {{ used_topics | join("; ") }}{% endif %}.
+{% endif %}
+{% if instructions %}
+
+Extra instructions: {{ instructions }}
+{% endif %}
+{% if avoid %}
+
+Do not repeat or closely paraphrase these existing questions:
+{% for text in avoid %}
+- {{ text }}
+{% endfor %}
+{% endif %}
+{% if material %}
+
+Material:
+"""
+{{ material }}
+"""
+{% endif %}
+
+Reply with JSON only: {"questions": [ ... ]}.

@@ -11,9 +11,10 @@ from starlette.concurrency import run_in_threadpool
 from app.config import Settings
 from app.db import make_engine, run_migrations
 from app.importer import import_directory
+from app.jobs import JobRunner, drafts_dir
 from app.llm import LLMClient
 from app.locales import get_translator
-from app.routes import attempts, courses, exams, questions
+from app.routes import attempts, builder, courses, exams, questions
 from app.templating import make_templates
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
@@ -35,7 +36,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         app.state.engine = await run_in_threadpool(_prepare_database, settings)
+        jobs = None
+        if settings.llm_enabled:
+            jobs = JobRunner(app.state.engine, lambda: app.state.llm, drafts_dir(settings.db_path))
+            await run_in_threadpool(jobs.start)
+        app.state.jobs = jobs
         yield
+        if jobs is not None:
+            await run_in_threadpool(jobs.stop)
         app.state.engine.dispose()
 
     app = FastAPI(title="quizbank", lifespan=lifespan)
@@ -50,6 +58,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(exams.router)
     app.include_router(attempts.router)
     app.include_router(questions.router)
+    if settings.llm_enabled:
+        app.include_router(builder.router)
 
     @app.get("/health")
     def health() -> dict[str, str]:

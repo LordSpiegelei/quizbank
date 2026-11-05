@@ -127,4 +127,55 @@
       }
     });
   }
+  // Exam builder: `accept` and the token meter follow the chosen model (the server checks again).
+  const builder = document.querySelector("form[data-builder]");
+  if (builder) {
+    const { model, files, material } = builder.elements;
+    const meter = builder.querySelector("[data-meter]");
+    const hint = builder.querySelector("[data-accept-hint]");
+    const imageTypes = builder.dataset.imageTypes.split(",");
+    const reserve = () => {
+      const count = ["single", "multiple", "open"].reduce((n, k) => n + (Number(builder.elements[k].value) || 0), 0);
+      return 1500 + Math.min(count, 5) * 600;
+    };
+    let context = Number(builder.dataset.context) || 0;
+    const update = () => {
+      const picked = [...files.files];
+      const images = picked.filter((f) => imageTypes.some((ext) => f.name.toLowerCase().endsWith(ext)));
+      const textBytes = picked.reduce((n, f) => n + f.size, 0) - images.reduce((n, f) => n + f.size, 0);
+      const used = Math.round((material.value.length + textBytes) / 4 + images.length * 1500 + reserve());
+      meter.textContent = meter.dataset.template.replace("{used}", used).replace("{limit}", context);
+      meter.classList.toggle("over", context > 0 && used > context);
+    };
+    const refresh = async () => {
+      const path = model.value.split("/").map(encodeURIComponent).join("/");
+      try {
+        const response = await fetch(builder.dataset.infoUrl.replace("__model__", path));
+        if (!response.ok) return;
+        const info = await response.json();
+        context = info.context_tokens;
+        files.accept = info.accept.join(",");
+        hint.textContent = hint.dataset.template.replace("{formats}", info.accept.join(" "));
+      } catch { /* the server reports problems on submit */ }
+      update();
+    };
+    model.addEventListener("change", refresh);
+    for (const el of [material, files, ...["single", "multiple", "open"].map((k) => builder.elements[k])]) {
+      el.addEventListener("input", update);
+    }
+    update();
+  }
+
+  // Draft page: while something is generating, reload as soon as the server has news.
+  const poller = document.querySelector("[data-draft-poll]");
+  if (poller) {
+    const tick = async () => {
+      try {
+        const data = await (await fetch(poller.dataset.draftPoll)).json();
+        if (data.version !== poller.dataset.version) return location.reload();
+      } catch { /* try again */ }
+      setTimeout(tick, 2000);
+    };
+    setTimeout(tick, 2000);
+  }
 })();

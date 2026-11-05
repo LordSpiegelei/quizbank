@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% from "_macros.html" import icon, page_head %}
+{% block title %}{{ job.params.title }} – {{ t("builder.title") }} – {{ super() }}{% endblock %}
+{% block content %}
+{{ page_head(t("draft.title", title=job.params.title), [(t("builder.nav"), path("builder_form")), (job.params.title, none)], lead=t("draft.lead", course=job.params.course, model=job.model)) }}
+
+{# shell.js polls the status while something runs and reloads when it changes. #}
+<section class="draft-status" {% if job.busy or job.regenerating %}data-draft-poll="{{ path('draft_status', job_id=job.id) }}" data-version="{{ job.updated_at.isoformat() }}"{% endif %}>
+  <p><mark class="status">{{ t("draft.status." ~ job.status) }}</mark>
+    {{ t("draft.progress", done=job.progress, total=job.total) }}</p>
+  {% if job.busy %}<progress max="{{ job.total or 1 }}" value="{{ job.progress }}"></progress>{% endif %}
+  {% if job.errors %}
+  <div class="notice error" role="alert">
+    <strong>{{ t("draft.errors") }}</strong>
+    <ul class="errors">{% for line in job.errors %}<li><code>{{ line }}</code></li>{% endfor %}</ul>
+  </div>
+  {% endif %}
+  {% if import_errors %}
+  <div class="notice error" role="alert">
+    <strong>{{ t("draft.import_failed") }}</strong>
+    <ul class="errors">{% for line in import_errors %}<li><code>{{ line }}</code></li>{% endfor %}</ul>
+  </div>
+  {% endif %}
+</section>
+
+<div class="draft-actions">
+  {% if job.busy %}
+  <form method="post" action="{{ path('draft_cancel', job_id=job.id) }}"><button class="btn-quiet">{{ t("draft.cancel") }}</button></form>
+  {% else %}
+    {% if job.status in ("failed", "cancelled") and not job.regenerating %}
+    <form method="post" action="{{ path('draft_retry', job_id=job.id) }}"><button>{{ icon("rotate-ccw") }}{{ t("draft.retry") }}</button></form>
+    {% endif %}
+    {% if questions and not job.regenerating %}
+    <form method="post" action="{{ path('draft_import', job_id=job.id) }}"><button>{{ icon("check") }}{{ t("draft.import") }}</button></form>
+    {% endif %}
+  {% endif %}
+  <form method="post" action="{{ path('draft_discard', job_id=job.id) }}" data-confirm="{{ t('draft.discard_confirm') }}" onsubmit="return confirm(this.dataset.confirm)">
+    <button class="btn-danger">{{ t("draft.discard") }}</button>
+  </form>
+</div>
+
+{% if not questions %}<p class="muted">{{ t("draft.empty") }}</p>{% endif %}
+{% for q in questions %}
+{% set regenerating = q.id in job.regenerating %}
+<article class="draft-q {{ 'regenerating' if regenerating }}" id="q-{{ q.id }}">
+  <div class="q-head">
+    <span class="q-pos">{{ t("quiz.question") }} {{ loop.index }}</span>
+    <mark class="status">{{ t("builder." ~ q.type) }}</mark>
+    <small class="muted">{{ q.topic }} · {{ t("common.points", n=(q.points | default(1)) | num) }}</small>
+    <span class="q-tools">
+      {% if regenerating %}<span class="muted">{{ t("draft.regenerating") }}</span>
+      {% elif not job.busy %}
+      <form method="post" action="{{ path('question_regenerate', job_id=job.id, question_id=q.id) }}"><button class="btn-quiet">{{ icon("rotate-ccw") }}{{ t("draft.regenerate") }}</button></form>
+      <form method="post" action="{{ path('question_drop', job_id=job.id, question_id=q.id) }}"><button class="btn-danger">{{ icon("x") }}{{ t("draft.drop") }}</button></form>
+      {% endif %}
+    </span>
+  </div>
+  {% if q.scenario %}<div class="scenario">{{ q.scenario | md }}</div>{% endif %}
+  <div class="question-text">{{ q.question | md }}</div>
+  {% if q.options %}
+  <ol class="draft-options">
+    {% for option in q.options %}
+    <li class="{{ 'correct' if loop.index0 in q.correct }}"><strong>{{ letters[loop.index0] }}</strong> {{ option | md_inline }}{% if loop.index0 in q.correct %} {{ icon("check") }}{% endif %}</li>
+    {% endfor %}
+  </ol>
+  {% endif %}
+  {% if q.model_answer %}<h4>{{ t("review.model_answer") }}</h4>{{ q.model_answer | md }}{% endif %}
+  {% if q.rubric %}<h4>{{ t("review.rubric") }}</h4>
+  <ul>{% for row in q.rubric %}<li>{{ row.criterion }} ({{ row.points | num }})</li>{% endfor %}</ul>{% endif %}
+  {% if q.explanation %}<div class="explanation"><h4>{{ t("review.explanation") }}</h4>{{ q.explanation | md }}</div>{% endif %}
+
+  {% if not job.busy and not regenerating %}
+  <details {{ 'open' if edit_errors and q.id in edit_errors }}>
+    <summary>{{ t("draft.edit") }}</summary>
+    {% if edit_errors and q.id in edit_errors %}
+    <div class="notice error" role="alert"><strong>{{ t("draft.json_invalid") }}</strong>
+      <ul class="errors">{% for line in edit_errors[q.id] %}<li><code>{{ line }}</code></li>{% endfor %}</ul></div>
+    {% endif %}
+    <form method="post" action="{{ path('question_edit', job_id=job.id, question_id=q.id) }}">
+      <textarea name="json" rows="14" spellcheck="false" aria-label="{{ t('draft.edit') }}">{{ edit_texts[q.id] if edit_texts and q.id in edit_texts else question_json[q.id] }}</textarea>
+      <button type="submit" class="btn-quiet">{{ t("draft.save") }}</button>
+    </form>
+  </details>
+  {% endif %}
+</article>
+{% endfor %}
+{% endblock %}

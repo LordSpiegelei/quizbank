@@ -51,6 +51,7 @@
 
     <div class="nav-footer">
       <a href="{{ path('import_form') }}" class="nav-link" {{ 'aria-current=page' if request.url.path == "/import" }}>{{ icon("upload") }}{{ t("nav.import") }}</a>
+      {% if llm_enabled %}<a href="{{ path('builder_form') }}" class="nav-link" {{ 'aria-current=page' if request.url.path.startswith("/builder") }}>{{ icon("sparkles") }}{{ t("builder.nav") }}</a>{% endif %}
       <button type="button" id="theme-toggle" class="nav-link"
               data-auto="{{ t('theme.auto') }}" data-light="{{ t('theme.light') }}"
               data-dark="{{ t('theme.dark') }}">{{ t("theme.auto") }}</button>

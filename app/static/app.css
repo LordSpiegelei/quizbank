@@ -552,9 +552,31 @@ form.assess output { font-variant-numeric: tabular-nums; }
 }
 
 /* AI review suggestion above the self-assessment form */
-.ai-review { margin: 1.25rem 0 0; padding: 1rem 1.25rem; border: 1px dashed var(--border, currentColor); border-radius: var(--radius); }
+.ai-review { margin: 1.25rem 0 0; padding: 1rem 1.25rem; border: 1px dashed var(--field-line); border-radius: var(--radius); }
 .ai-review h4 { margin-top: 0; }
 .ai-controls { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; margin: 0 0 .5rem; }
 .ai-controls select { width: auto; max-width: 100%; margin: 0; }
 .ai-review[aria-busy="true"] .ai-feedback { opacity: .6; }
-.ai-review .ai-error { color: var(--danger, inherit); font-weight: 600; }
+.ai-review .ai-error { color: var(--wrong); font-weight: 600; }
+
+/* Exam builder */
+.builder-form { max-width: 48rem; }
+.builder-form .fields { margin-bottom: 0.5rem; }
+.builder-form textarea { width: 100%; }
+.meter { font-variant-numeric: tabular-nums; color: var(--ink-muted); }
+.meter.over { color: var(--wrong); font-weight: 600; }
+.draft-list { list-style: none; padding: 0; display: grid; gap: 0.5rem; }
+.draft-list li { display: flex; flex-wrap: wrap; gap: 0.25rem 1rem; align-items: baseline; padding: 0.6rem 0.9rem; background: var(--sheet); border: 1px solid var(--rule); border-radius: var(--radius); }
+.draft-list .muted { margin-left: auto; }
+.draft-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin: 1rem 0; }
+.draft-actions form { margin: 0; }
+progress { width: 100%; max-width: 24rem; accent-color: var(--ballpoint); }
+.draft-q { margin: 1rem 0; padding: 1rem 1.25rem; background: var(--sheet); border: 1px solid var(--rule); border-radius: var(--radius-panel); }
+.draft-q .q-head { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; align-items: center; }
+.draft-q .q-tools { margin-left: auto; display: flex; gap: 0.5rem; }
+.draft-q .q-tools form { margin: 0; }
+.draft-q ol.draft-options { list-style: none; padding: 0; margin: 0.5rem 0; }
+.draft-q ol.draft-options li { padding: 0.2rem 0.5rem; border-radius: var(--radius); }
+.draft-q ol.draft-options li.correct { background: var(--right-wash); }
+.draft-q details textarea { width: 100%; font-family: var(--mono); font-size: var(--t-small); }
+.draft-q.regenerating { opacity: 0.6; }
