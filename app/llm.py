@@ -56,6 +56,12 @@ class LLMClient:
     def default_model(self) -> str | None:
         return self.settings.llm_model
 
+    def preferred_model(self, models: list[str]) -> str | None:
+        """The configured default if the server has it, else the first listed model."""
+        if self.default_model in models or not models:
+            return self.default_model
+        return models[0]
+
     def _request(self, method: str, url: str, **kwargs: Any) -> httpx.Response:
         try:
             response = self._http.request(method, url, **kwargs)

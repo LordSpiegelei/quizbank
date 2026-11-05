@@ -187,6 +187,7 @@ TEXTS: dict[str, str] = {
     "builder.title": "Klausur mit KI erstellen",
     "builder.lead": "Beschreibe die Klausur und gib der KI dein Material. Du bekommst einen Entwurf zum Prüfen, Bearbeiten und Importieren.",
     "builder.unreachable": "Der LLM-Server ist nicht erreichbar ({error}). Erzeugen ist deaktiviert, bis er wieder läuft.",
+    "builder.default_missing": "Das Standardmodell {model} (LLM_MODEL) gibt es auf dem Server nicht, daher ist ein anderes vorausgewählt.",
     "builder.model": "Modell",
     "builder.course_existing": "Kurs",
     "builder.course_none": "(wählen oder neuen eingeben)",

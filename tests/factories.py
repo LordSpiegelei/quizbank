@@ -67,6 +67,9 @@ class FakeLLM:
         self.vision = vision
         self.context_tokens = context_tokens
 
+    def preferred_model(self, models):
+        return self.default_model if self.default_model in models or not models else models[0]
+
     def list_models(self) -> list[str]:
         if isinstance(self.models, Exception):
             raise self.models

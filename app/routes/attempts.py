@@ -219,6 +219,7 @@ def _review_page(
     request: Request, session: Session, attempt: Attempt, status_code: int = 200, **extra
 ) -> HTMLResponse:
     llm = request.app.state.llm
+    models = _llm_models(request, attempt)
     return render(
         request,
         "review.html",
@@ -227,8 +228,8 @@ def _review_page(
         exam=attempt.exam,
         items=review_items(attempt),
         questions=live_questions(session, attempt),
-        llm_models=_llm_models(request, attempt),
-        llm_default=llm.default_model if llm else None,
+        llm_models=models,
+        llm_default=llm.preferred_model(models) if llm and models else None,
         **extra,
     )
 

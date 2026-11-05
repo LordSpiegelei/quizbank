@@ -10,8 +10,17 @@ def _env_bool(name: str, default: bool) -> bool:
     return value.strip().lower() in {"1", "true", "yes", "on"}
 
 
-def _env_int(name: str) -> int | None:
+def _env_str(name: str) -> str | None:
+    """Trimmed value without one pair of surrounding quotes: in a compose file's list form
+    (`- LLM_MODEL="x"`) the quotes are part of the value. Empty means not set."""
     value = os.environ.get(name, "").strip()
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+        value = value[1:-1].strip()
+    return value or None
+
+
+def _env_int(name: str) -> int | None:
+    value = _env_str(name)
     return int(value) if value else None
 
 
@@ -35,16 +44,16 @@ class Settings:
 
     @classmethod
     def from_env(cls) -> "Settings":
-        capabilities = os.environ.get("LLM_CAPABILITIES", "")
+        capabilities = _env_str("LLM_CAPABILITIES") or ""
         return cls(
             db_path=Path(os.environ.get("DB_PATH", "./data/quizbank.db")),
             questions_dir=Path(os.environ.get("QUESTIONS_DIR", "./questions")),
             auto_import=_env_bool("AUTO_IMPORT", True),
             app_lang=os.environ.get("APP_LANG", "en"),
-            llm_base_url=(os.environ.get("LLM_BASE_URL") or "").strip().rstrip("/") or None,
-            llm_model=os.environ.get("LLM_MODEL") or None,
-            llm_api_key=os.environ.get("LLM_API_KEY") or None,
-            llm_timeout=float(os.environ.get("LLM_TIMEOUT") or 300),
+            llm_base_url=(_env_str("LLM_BASE_URL") or "").rstrip("/") or None,
+            llm_model=_env_str("LLM_MODEL"),
+            llm_api_key=_env_str("LLM_API_KEY"),
+            llm_timeout=float(_env_str("LLM_TIMEOUT") or 300),
             llm_capabilities=frozenset(
                 part.strip().lower() for part in capabilities.split(",") if part.strip()
             ),

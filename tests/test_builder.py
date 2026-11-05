@@ -327,3 +327,14 @@ def test_normalize_batch_rejects_wrong_option_count() -> None:
 
 def test_plan_types_orders_by_type() -> None:
     assert plan_types(2, 1, 1) == ["single", "single", "multiple", "open"]
+
+
+def test_builder_preselects_env_default_and_flags_missing_one(llm_client) -> None:
+    llm_client.app.state.llm = FakeLLM(models=("a-model", "fake", "z-model"))
+    page = llm_client.get("/builder").text
+    assert '<option value="fake" selected' in page
+    assert "LLM_MODEL" not in page
+
+    llm_client.app.state.llm = FakeLLM(models=("a-model", "z-model"))
+    page = llm_client.get("/builder").text
+    assert '<option value="a-model" selected' in page and "LLM_MODEL" in page

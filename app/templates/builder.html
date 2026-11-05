@@ -4,6 +4,7 @@
 {% block content %}
 {{ page_head(t("builder.title"), lead=t("builder.lead")) }}
 
+{% if default_missing %}<p class="notice">{{ t("builder.default_missing", model=default_missing) }}</p>{% endif %}
 {% if llm_error %}<p class="notice error" role="alert">{{ t("builder.unreachable", error=llm_error) }}</p>{% endif %}
 
 {# shell.js keeps `accept` and the token meter in line with the chosen model. #}

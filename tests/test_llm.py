@@ -135,3 +135,19 @@ def test_model_info_default_is_text_only_small_context():
 def test_estimate_tokens():
     assert estimate_tokens("a" * 400) == 101
     assert estimate_tokens("", images=2) == 3001
+
+
+@pytest.mark.parametrize("raw", ['"qwen2.5:7b"', "'qwen2.5:7b'", "  qwen2.5:7b  "])
+def test_from_env_strips_quotes(monkeypatch, raw):
+    monkeypatch.setenv("LLM_BASE_URL", '"http://host:11434"')
+    monkeypatch.setenv("LLM_MODEL", raw)
+    settings = Settings.from_env()
+    assert settings.llm_model == "qwen2.5:7b"
+    assert settings.llm_base_url == "http://host:11434"
+
+
+def test_preferred_model():
+    client = make_client(lambda request: httpx.Response(404), llm_model="b")
+    assert client.preferred_model(["a", "b"]) == "b"
+    assert client.preferred_model(["a", "c"]) == "a"
+    assert client.preferred_model([]) == "b"

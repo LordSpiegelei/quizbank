@@ -187,6 +187,7 @@ TEXTS: dict[str, str] = {
     "builder.title": "Build an exam with AI",
     "builder.lead": "Describe the exam and give the AI your material. You get a draft to review, edit and import.",
     "builder.unreachable": "The LLM server cannot be reached ({error}). Generating is disabled until it is back.",
+    "builder.default_missing": "The default model {model} (LLM_MODEL) is not on the server, so another one is preselected.",
     "builder.model": "Model",
     "builder.course_existing": "Course",
     "builder.course_none": "(choose or enter a new one)",

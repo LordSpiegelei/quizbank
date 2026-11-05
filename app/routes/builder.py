@@ -77,7 +77,8 @@ def _builder_page(
 ):
     models, llm_error = _models(llm)
     values = DEFAULT_FORM | {"language": request.app.state.settings.app_lang} | (form or {})
-    model = values.get("model") or llm.default_model or (models[0] if models else "")
+    model = values.get("model") or llm.preferred_model(models) or ""
+    default_missing = bool(models) and bool(llm.default_model) and llm.default_model not in models
     info = llm.model_info(model) if model and not llm_error else None
     return render(
         request,
@@ -88,6 +89,7 @@ def _builder_page(
         form=values | {"model": model},
         accept=",".join(accepted_extensions(info)) if info else "",
         info=info,
+        default_missing=llm.default_model if default_missing else None,
         course_names=session.exec(select(Course.name).order_by(col(Course.name))).all(),
         drafts=session.exec(select(GenerationJob).order_by(col(GenerationJob.id).desc())).all(),
         **extra,
