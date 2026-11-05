@@ -1,4 +1,11 @@
-You write questions for a mock exam. Base them on the material below.
+{% if material %}
+Material:
+"""
+{{ material }}
+"""
+
+{% endif %}
+You write questions for a mock exam. Base them on the material {{ "above" if material else "provided" }}.
 {% if not material and not images %}
 (No material was provided: use general knowledge of the topics.)
 {% endif %}
@@ -32,13 +39,6 @@ Do not repeat or closely paraphrase these existing questions:
 {% for text in avoid %}
 - {{ text }}
 {% endfor %}
-{% endif %}
-{% if material %}
-
-Material:
-"""
-{{ material }}
-"""
 {% endif %}
 
 Reply with JSON only: {"questions": [ ... ]}.

@@ -24,6 +24,13 @@ def chat_reply(content: str) -> httpx.Response:
     return httpx.Response(200, json={"choices": [{"message": {"content": content}}]})
 
 
+def openai_only(handler):
+    """A non-Ollama server: /api/show does not exist."""
+    return lambda request: (
+        httpx.Response(404) if request.url.path == "/api/show" else handler(request)
+    )
+
+
 def test_disabled_without_base_url(settings):
     assert not settings.llm_enabled
 
@@ -47,7 +54,7 @@ def test_list_models_sorted():
 
 
 def test_chat_returns_text_and_strips_think():
-    client = make_client(lambda request: chat_reply("<think>hmm\nmore</think>\nHello"))
+    client = make_client(openai_only(lambda request: chat_reply("<think>hmm\nmore</think>\nHello")))
     assert client.chat("m", [{"role": "user", "content": "hi"}]) == "Hello"
 
 
@@ -58,20 +65,20 @@ def test_chat_with_schema_sends_response_format_and_parses():
         seen.update(json.loads(request.content))
         return chat_reply('{"ok": true}')
 
-    client = make_client(handler, llm_api_key="secret")
+    client = make_client(openai_only(handler), llm_api_key="secret")
     assert client.chat("m", [], json_schema={"type": "object"}) == {"ok": True}
     assert seen["response_format"]["json_schema"]["schema"] == {"type": "object"}
     assert seen["model"] == "m"
 
 
 def test_chat_invalid_json_raises():
-    client = make_client(lambda request: chat_reply("not json"))
+    client = make_client(openai_only(lambda request: chat_reply("not json")))
     with pytest.raises(LLMError):
         client.chat("m", [], json_schema={"type": "object"})
 
 
 def test_chat_unexpected_shape_raises():
-    client = make_client(lambda request: httpx.Response(200, json={"oops": 1}))
+    client = make_client(openai_only(lambda request: httpx.Response(200, json={"oops": 1})))
     with pytest.raises(LLMError):
         client.chat("m", [])
 
@@ -151,3 +158,47 @@ def test_preferred_model():
     assert client.preferred_model(["a", "b"]) == "b"
     assert client.preferred_model(["a", "c"]) == "a"
     assert client.preferred_model([]) == "b"
+
+
+def ollama_server(seen: list, content: str = '{"ok": 1}', context: int = 32768):
+    def handler(request):
+        if request.url.path == "/api/show":
+            return httpx.Response(
+                200, json={"capabilities": ["vision"], "model_info": {"q.context_length": context}}
+            )
+        seen.append((request.url.path, json.loads(request.content)))
+        return httpx.Response(200, json={"message": {"role": "assistant", "content": content}})
+
+    return handler
+
+
+def test_ollama_uses_native_chat_with_num_ctx_and_format():
+    seen = []
+    client = make_client(ollama_server(seen))
+    prompt = "x" * 40000  # ~10k tokens
+    assert client.chat("m", [{"role": "user", "content": prompt}], {"type": "object"}) == {"ok": 1}
+    path, body = seen[0]
+    assert path == "/api/chat" and body["format"] == {"type": "object"}
+    assert body["stream"] is False
+    assert body["options"]["num_ctx"] == 12288  # 10001 + 2048 reserve, rounded up to 1024
+
+
+def test_ollama_num_ctx_is_clamped():
+    seen = []
+    client = make_client(ollama_server(seen, content="hi", context=8192))
+    client.chat("m", [{"role": "user", "content": "x" * 400000}])
+    assert seen[0][1]["options"]["num_ctx"] == 8192
+    client.chat("m", [{"role": "user", "content": "short"}])
+    assert seen[1][1]["options"]["num_ctx"] == 4096  # minimum
+
+
+def test_ollama_images_are_converted():
+    seen = []
+    client = make_client(ollama_server(seen, content="hi"))
+    parts = [
+        {"type": "text", "text": "look"},
+        {"type": "image_url", "image_url": {"url": "data:image/png;base64,QUJD"}},
+    ]
+    client.chat("m", [{"role": "user", "content": parts}])
+    message = seen[0][1]["messages"][0]
+    assert message == {"role": "user", "content": "look", "images": ["QUJD"]}

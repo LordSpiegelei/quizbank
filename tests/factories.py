@@ -80,8 +80,10 @@ class FakeLLM:
 
         return ModelInfo(self.vision, self.context_tokens)
 
-    def chat(self, model, messages, json_schema=None):
-        self.calls.append({"model": model, "messages": messages, "schema": json_schema})
+    def chat(self, model, messages, json_schema=None, reserve_tokens=2048):
+        self.calls.append(
+            {"model": model, "messages": messages, "schema": json_schema, "reserve": reserve_tokens}
+        )
         reply = self.replies.pop(0)
         if isinstance(reply, Exception):
             raise reply

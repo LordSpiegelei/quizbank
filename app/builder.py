@@ -222,7 +222,9 @@ def generate_batch(
     for _ in range(2):
         reply = None
         try:
-            reply = llm.chat(model, messages, question_schema())
+            reply = llm.chat(
+                model, messages, question_schema(), reserve_tokens=output_reserve(len(batch_types))
+            )
             return normalize_batch(reply, batch_types, params["options"], ids)
         except (LLMReplyError, ValueError) as exc:
             problem = str(exc)
