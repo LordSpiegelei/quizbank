@@ -4,7 +4,9 @@ Pure logic lives here (material checks, batching, prompts, validation); `jobs.py
 background and `routes/builder.py` is the web UI."""
 
 import base64
+import difflib
 import json
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -177,18 +179,75 @@ def _error_lines(exc: ValidationError) -> str:
     )
 
 
+_LABELS = (
+    [f"{c}." for c in "ABCDEFGHIJ"],
+    [f"{c})" for c in "ABCDEFGHIJ"],
+    [f"{c}." for c in "abcdefghij"],
+    [f"{c})" for c in "abcdefghij"],
+    [f"{n}." for n in range(1, 11)],
+    [f"{n})" for n in range(1, 11)],
+)
+
+
+def strip_option_labels(options: list[str]) -> list[str]:
+    """Drop "A." / "a)" / "1." prefixes the model added (the app shows its own letters), but
+    only if every option carries the expected label in sequence; real content stays."""
+    for labels in _LABELS:
+        if len(options) <= len(labels) and all(
+            isinstance(o, str) and o.lstrip().startswith(label + " ")
+            for o, label in zip(options, labels, strict=False)
+        ):
+            pairs = zip(options, labels, strict=False)
+            return [o.lstrip()[len(label) :].strip() for o, label in pairs]
+    return options
+
+
+# Phrases that point at something the question does not contain ("the given operations").
+_DANGLING = re.compile(
+    r"\b(the given|the above|the following material|(?:from|in) the (?:material|text|sheet)"
+    r"|siehe oben|(?:im|aus dem) (?:material|text|aufgabenblatt|übungsblatt)"
+    r"|die (?:gegebenen|obigen|genannten) )",
+    re.IGNORECASE,
+)
+DUPLICATE_RATIO = 0.9  # on scenario + question + options, so variants of one task survive
+
+
+def _normalized(text: str) -> str:
+    return " ".join(re.findall(r"\w+", text.casefold()))
+
+
+def _fingerprint(question: dict[str, Any]) -> str:
+    options = question.get("options") or []
+    parts = [question.get("scenario"), question.get("question"), *options]
+    return " ".join(str(p) for p in parts if isinstance(p, str))
+
+
+def is_duplicate(text: str, others: list[str]) -> bool:
+    mine = _normalized(text)
+    return any(
+        difflib.SequenceMatcher(None, mine, _normalized(other)).ratio() >= DUPLICATE_RATIO
+        for other in others
+    )
+
+
 def accept_batch(
-    reply: Any, slots: list[dict[str, Any]], options: int | None, ids: list[str]
+    reply: Any,
+    slots: list[dict[str, Any]],
+    options: int | None,
+    ids: list[str],
+    existing: list[dict[str, Any]] = (),  # type: ignore[assignment]
 ) -> tuple[list[tuple[int, dict[str, Any]]], list[str]]:
     """Fill as many slots as the reply allows: each item is validated on its own, each slot
     takes the first valid unused item of its type (and gets the slot's topic, if it has one),
-    extra items are dropped. Returns ((slot index, question with id), problems); raises
-    ValueError only if the reply is not a question list at all."""
+    extra items are dropped. Items that duplicate a question (in the draft or earlier in the
+    reply) or point at missing context are dropped too. Returns ((slot index, question with
+    id), problems); raises ValueError only if the reply is not a question list at all."""
     items = reply.get("questions") if isinstance(reply, dict) else None
     if not isinstance(items, list):
         raise ValueError('reply must be {"questions": [ ... ]}')
     problems: list[str] = []
     valid: dict[str, list[dict[str, Any]]] = {}
+    seen = [_fingerprint(q) for q in existing]
     for n, item in enumerate(items):
         kind = item.get("type") if isinstance(item, dict) else None
         if kind not in QUESTION_FIELDS:
@@ -196,6 +255,15 @@ def accept_batch(
             continue
         keep = QUESTION_FIELDS[kind]
         data = {k: v for k, v in item.items() if k in keep and v not in (None, "", [])}
+        if isinstance(data.get("options"), list):
+            data["options"] = strip_option_labels(data["options"])
+        text = f"{data.get('scenario') or ''} {data.get('question') or ''}"
+        if _DANGLING.search(text):
+            problems.append(f"questions[{n}]: refers to context it does not contain")
+            continue
+        if is_duplicate(_fingerprint(data), seen):
+            problems.append(f"questions[{n}]: duplicates an existing question")
+            continue
         try:
             question = question_adapter.validate_python(data | {"id": "new"})
         except ValidationError as exc:
@@ -212,6 +280,7 @@ def accept_batch(
             problems.append(f"questions[{n}]: expected {options} options, got {len(choices)}")
             continue
         valid.setdefault(kind, []).append(question.model_dump(mode="json", exclude_none=True))
+        seen.append(_fingerprint(data))
 
     filled: list[tuple[int, dict[str, Any]]] = []
     for index, slot in enumerate(slots):
@@ -278,7 +347,7 @@ def generate_batch(
                 on_text=on_text,
                 temperature=GENERATION_TEMPERATURE,
             )
-            filled, problems = accept_batch(reply, slots, params.get("options"), ids)
+            filled, problems = accept_batch(reply, slots, params.get("options"), ids, existing)
         except (LLMReplyError, ValueError) as exc:
             filled, problems = [], [str(exc)]
         if filled:
@@ -311,8 +380,15 @@ def outline_schema(counts: dict[str, int | None], total: int | None) -> dict[str
     return {"type": "object", "properties": {"questions": items}, "required": ["questions"]}
 
 
+MIN_TOPICS = 3  # distinct topics an outline of MIN_TOPICS_FROM questions or more must have
+MIN_TOPICS_FROM = 6
+
+
 def normalize_outline(
-    reply: Any, counts: dict[str, int | None], total: int | None
+    reply: Any,
+    counts: dict[str, int | None],
+    total: int | None,
+    require_topics: bool = False,
 ) -> list[dict[str, Any]]:
     """Plan slots from an outline reply, with the user's fixed numbers enforced: fixed types get
     exactly their count (padded or trimmed), excluded types (0) are dropped, the free types
@@ -352,6 +428,11 @@ def normalize_outline(
     slots += free
     if not slots:
         raise ValueError("the outline contains no usable questions")
+    distinct = {slot["topic"] for slot in slots if slot["topic"]}
+    if require_topics and len(slots) >= MIN_TOPICS_FROM and len(distinct) < MIN_TOPICS:
+        raise ValueError(
+            f"only {len(distinct)} topic(s); use {MIN_TOPICS}-6 distinct sub-topics of the material"
+        )
     order = {kind: n for n, kind in enumerate(QUESTION_TYPES)}
     return sorted(slots, key=lambda slot: order[slot["type"]])
 
@@ -379,8 +460,10 @@ def outline(
     language = params.get("language") or "en"
     messages = [system_message(language), _user_message(prompt, material.images)]
     problem = ""
-    for _ in range(2):
+    for attempt in range(2):
         reply = None
+        # topic variety is asked for once; a second outline is taken as it is
+        require_topics = attempt == 0 and not params.get("topics")
         try:
             reply = llm.chat(
                 model,
@@ -390,7 +473,7 @@ def outline(
                 on_text=on_text,
                 temperature=GENERATION_TEMPERATURE,
             )
-            return normalize_outline(reply, counts, total)
+            return normalize_outline(reply, counts, total, require_topics)
         except (LLMReplyError, ValueError) as exc:
             problem = str(exc)
             if on_text:

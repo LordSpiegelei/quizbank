@@ -26,7 +26,7 @@ Rules:
 {% if topics %}
 - "topic" is one of: {{ topics | join("; ") }}. Spread the questions across them.
 {% else %}
-- "topic" is a short main topic from the material; use a handful of topics, each several times.
+- "topic" is a short sub-topic from the material (e.g. one per section or exercise); use 3-6 distinct topics, not the course name.
 {% endif %}
 {% if instructions %}
 - Extra instructions: {{ instructions }}

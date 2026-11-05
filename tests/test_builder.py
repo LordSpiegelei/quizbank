@@ -13,17 +13,44 @@ from tests.factories import FakeLLM, db, exam, single
 FORM = {"course_new": "Kurs", "title": "Entwurf", "single": "3", "multiple": "1", "open": "1"}
 
 
+WORDS = [
+    "Kernel",
+    "Scheduler",
+    "Paging",
+    "Semaphore",
+    "Deadlock",
+    "Interrupt",
+    "Dateisystem",
+    "Pipe",
+    "Signal",
+    "Cache",
+    "Monitor",
+    "Spooler",
+    "Treiber",
+    "Shell",
+    "Mutex",
+    "Stack",
+    "Heap",
+    "Segment",
+    "Quantum",
+    "Prozess",
+]
+
+
 def question(kind: str, n: int = 1) -> dict:
-    base = {"type": kind, "topic": "Thema", "question": f"Frage {kind} {n}?", "explanation": "weil"}
+    # distinct texts per n, or the duplicate check would drop them
+    text = f"Frage {kind} {n}? " + " ".join(WORDS[(n * 7 + i) % len(WORDS)] for i in range(4))
+    base = {"type": kind, "topic": "Thema", "question": text, "explanation": "weil"}
     if kind == "open":
         return base | {
-            "scenario": "Lage",
+            "scenario": f"Lage {WORDS[n % len(WORDS)]}",
             "points": 5,
             "model_answer": "Antwort",
             "rubric": [{"criterion": "Kriterium", "points": 5}],
         }
     correct = [1] if kind == "single" else [0, 2]
-    return base | {"options": ["a", "b", "c", "d"], "correct": correct}
+    options = [f"{WORDS[(n + i) % len(WORDS)]} {i}" for i in range(4)]
+    return base | {"options": options, "correct": correct}
 
 
 def reply(*kinds: str, start: int = 1) -> dict:
@@ -264,7 +291,10 @@ def test_regenerate_keeps_id_type_topic_and_position(llm_client) -> None:
     job = job_of(llm_client)
     questions = job.draft["questions"]
     assert [q["id"] for q in questions] == ["ai-1-001", "ai-1-002", "ai-1-003"]
-    assert questions[1]["question"] == "Frage multiple 9?" and questions[1]["topic"] == "Thema"
+    assert (
+        questions[1]["question"].startswith("Frage multiple 9?")
+        and questions[1]["topic"] == "Thema"
+    )
     assert job.regenerating == []
     prompt = llm.calls[-1]["prompt"]
     assert 'topic "Thema"' in prompt and "Frage single 1?" in prompt
@@ -276,7 +306,7 @@ def test_regenerate_failure_is_reported_and_keeps_question(llm_client) -> None:
     llm.replies.append(LLMError("cannot reach the LLM"))
     llm_client.post("/builder/drafts/1/questions/ai-1-001/regenerate", follow_redirects=False)
     job = job_of(llm_client)
-    assert job.draft["questions"][0]["question"] == "Frage single 1?"
+    assert job.draft["questions"][0]["question"].startswith("Frage single 1?")
     assert job.regenerating == [] and job.errors == ["cannot reach the LLM"]
 
 
@@ -551,3 +581,78 @@ def test_question_without_model_answer_or_explanation_is_rejected() -> None:
     no_why = question("single") | {"explanation": ""}
     filled, problems = accept_batch({"questions": [no_why]}, plan_slots(["single"]), None, ["a"])
     assert filled == [] and "explanation is missing" in problems[0]
+
+
+def test_strip_option_labels() -> None:
+    from app.builder import strip_option_labels
+
+    assert strip_option_labels(["A. eins", "B. zwei", "C. drei"]) == ["eins", "zwei", "drei"]
+    assert strip_option_labels(["a) eins", "b) zwei"]) == ["eins", "zwei"]
+    assert strip_option_labels(["1. eins", "2. zwei"]) == ["eins", "zwei"]
+    # not a consistent sequence: real content stays
+    assert strip_option_labels(["A. eins", "zwei"]) == ["A. eins", "zwei"]
+    assert strip_option_labels(["B. zwei", "A. eins"]) == ["B. zwei", "A. eins"]
+    assert strip_option_labels(["3.5 GHz", "4.0 GHz"]) == ["3.5 GHz", "4.0 GHz"]
+
+
+def test_labels_are_stripped_in_accepted_questions() -> None:
+    labelled = question("single") | {"options": ["A. Kernel", "B. Shell", "C. Pipe", "D. Heap"]}
+    filled, _ = accept_batch({"questions": [labelled]}, plan_slots(["single"]), 4, ["a"])
+    assert filled[0][1]["options"] == ["Kernel", "Shell", "Pipe", "Heap"]
+
+
+def test_duplicates_are_dropped_within_batch_and_against_draft() -> None:
+    first, again = question("single", 1), question("single", 1) | {"explanation": "anders"}
+    filled, problems = accept_batch(
+        {"questions": [first, again]}, plan_slots(["single", "single"]), None, ["a", "b"]
+    )
+    assert len(filled) == 1 and "duplicates an existing question" in problems[0]
+    filled, problems = accept_batch(
+        {"questions": [question("single", 1)]}, plan_slots(["single"]), None, ["a"], [first]
+    )
+    assert filled == [] and "duplicates" in problems[0]
+
+
+def test_variants_of_a_task_are_not_duplicates() -> None:
+    from app.builder import is_duplicate
+
+    a = "Berechnen Sie die mittlere Wartezeit bei RR mit Quantum 1. P1=7, P2=3, P3=1"
+    b = "Berechnen Sie die mittlere Wartezeit bei FCFS. P1=2, P2=9, P3=4, P4=6"
+    assert not is_duplicate(a, [b])
+    assert is_duplicate("Was ist ein Thread?", ["Was ist ein Thread ?"])
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Using the given coordination operations, order PA and PB.",
+        "Beschreiben Sie, wie die gegebenen Operationen wirken.",
+        "Siehe oben: wie lange dauert es?",
+        "Welche Aufgabe im Material behandelt Paging?",
+    ],
+)
+def test_dangling_references_are_dropped(text) -> None:
+    item = question("open") | {"question": text}
+    filled, problems = accept_batch({"questions": [item]}, plan_slots(["open"]), None, ["a"])
+    assert filled == [] and "context it does not contain" in problems[0]
+
+
+def test_single_topic_outline_is_retried_once(llm_client) -> None:
+    llm = llm_client.app.state.llm = FakeLLM(
+        outline_reply(*["single"] * 6, topic="Betriebssysteme"),
+        {"questions": [{"type": "single", "topic": t} for t in "ABCABC"]},
+        reply(*["single"] * 5),
+        reply("single", start=6),
+    )
+    create(llm_client, single="", multiple="0", open="0", options="")
+    job = job_of(llm_client)
+    assert job.status == "done" and len(llm.calls) == 4
+    assert "distinct sub-topics" in llm.calls[1]["messages"][-1]["content"]
+    assert {q["topic"] for q in job.draft["questions"]} == {"A", "B", "C"}
+
+
+def test_single_topic_outline_is_accepted_on_second_try(llm_client) -> None:
+    same = outline_reply(*["single"] * 6, topic="Betriebssysteme")
+    llm_client.app.state.llm = FakeLLM(same, same, reply(*["single"] * 5), reply("single", start=6))
+    create(llm_client, single="", multiple="0", open="0", options="")
+    assert job_of(llm_client).status == "done"
