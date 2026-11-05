@@ -197,6 +197,9 @@ class GenerationJob(SQLModel, table=True):
     draft: dict[str, Any] | None = Field(default=None, sa_type=JSON)
     errors: list[str] = Field(default_factory=list, sa_type=JSON)
     regenerating: list[str] = Field(default_factory=list, sa_type=JSON)  # question ids
+    # Cross-check: question id -> the options the model chose when answering it without the
+    # key, for questions where that differs from the key (shown as "check this").
+    flags: dict[str, list[int]] = Field(default_factory=dict, sa_type=JSON)
     # Live log for the draft page: events {"n", "at", "kind", "text"} (last few hundred) and
     # the text the model is streaming right now, as segments {"kind", "text"}.
     log: list[dict[str, Any]] = Field(default_factory=list, sa_type=JSON)

@@ -1,0 +1,20 @@
+{% if material %}
+Material:
+"""
+{{ material }}
+"""
+
+{% endif %}
+Answer each of these exam questions yourself{{ " based on the material above" if material else "" }}. Think about each one carefully; the questions may contain mistakes, so do not guess what the author intended.
+
+{% for q in questions %}
+Question {{ q.id }} ({{ "exactly one option is correct" if q.type == "single" else "one or more options are correct" }}):
+{% if q.get("scenario") %}{{ q.scenario }}
+{% endif %}
+{{ q.question }}
+{% for option in q.options %}
+{{ loop.index0 }}: {{ option }}
+{% endfor %}
+
+{% endfor %}
+Reply with JSON only: {"answers": [{"id": <question id>, "correct": [<0-based indices of the correct options>]}, ...]}, one entry per question.

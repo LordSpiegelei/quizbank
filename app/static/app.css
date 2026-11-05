@@ -594,3 +594,8 @@ progress { width: 100%; max-width: 24rem; accent-color: var(--ballpoint); }
 .log-live:empty { display: none; }
 .log-live .thinking { color: var(--ink-muted); font-style: italic; }
 .log-live .meta { color: var(--ink-muted); }
+
+/* Cross-check flags on draft questions */
+.draft-q mark.flagged { background: var(--marker); color: var(--ink); }
+.flag-note { color: var(--ink-muted); flex-basis: 100%; }
+.flag-count { color: var(--ink-muted); }

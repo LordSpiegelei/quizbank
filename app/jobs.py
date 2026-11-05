@@ -21,6 +21,7 @@ from app.builder import (
     BATCH_SIZE,
     GenerationError,
     Material,
+    cross_check,
     generate_batch,
     load_images,
     outline,
@@ -248,6 +249,40 @@ class JobRunner:
         images = load_images(self.directory / str(job.id), job.images)
         return Material(job.material_text, images)
 
+    def _cross_check(
+        self,
+        llm: LLMClient,
+        model: str,
+        params: dict[str, Any],
+        material: Material,
+        questions: list[dict[str, Any]],
+        log: JobLog,
+    ) -> dict[str, list[int]]:
+        """Flags for `questions` if the user asked for the cross-check; a failing check is
+        only a warning (the questions stay, unflagged)."""
+        checkable = [q for q in questions if q["type"] != "open"]
+        if not params.get("verify") or not checkable:
+            return {}
+        log.event(f"Cross-checking {len(checkable)} answer key(s)")
+        try:
+            flags = cross_check(llm, model, material, checkable, on_text=log.on_text)
+        except LLMError as exc:
+            log.flush()
+            log.event(f"Cross-check failed: {exc}", "warning")
+            return {}
+        log.flush()
+        log.event(f"Cross-check: {len(flags)} of {len(checkable)} disagreed")
+        return flags
+
+    def _merge_flags(self, job_id: int, flags: dict[str, list[int]]) -> None:
+        with Session(self.engine) as session:
+            job = session.get(GenerationJob, job_id)
+            if job is not None:
+                job.flags = job.flags | flags
+                job.updated_at = utcnow()
+                session.add(job)
+                session.commit()
+
     # -- the jobs ----------------------------------------------------------------------------
 
     def run_exam(self, job_id: int) -> None:
@@ -339,7 +374,10 @@ class JobRunner:
             remaining = [slot for i, slot in enumerate(remaining) if i not in taken]
             draft = {**draft, "questions": [*draft["questions"], *(q for _, q in filled)]}
             params = {**params, "plan": remaining}
+            flags = self._cross_check(llm, model, params, material, [q for _, q in filled], log)
             self._set(job_id, draft=draft, params=params, progress=len(draft["questions"]))
+            if flags:
+                self._merge_flags(job_id, flags)
         self._set(job_id, status="done")
         log.event(f"Done: {len(draft['questions'])} questions")
 
@@ -371,12 +409,14 @@ class JobRunner:
             return
         log.flush()
         log.event(f"Replaced {question_id}")
+        flags = self._cross_check(self._llm(), model, params, material, [new], log)
         with Session(self.engine) as session:  # re-read: the user may have edited meanwhile
             job = session.get(GenerationJob, job_id)
             if job is None or job.draft is None:
                 return
             questions = [new if q["id"] == question_id else q for q in job.draft["questions"]]
             job.draft = {**job.draft, "questions": questions}
+            job.flags = {k: v for k, v in job.flags.items() if k != question_id} | flags
             job.regenerating = [q for q in job.regenerating if q != question_id]
             job.updated_at = utcnow()
             session.add(job)

@@ -74,6 +74,8 @@
         </select>
       </label>
     </div>
+    <label><input type="checkbox" name="verify" value="1" {{ 'checked' if form.verify == '1' }}> {{ t("builder.verify") }}</label>
+    <p class="muted"><small>{{ t("builder.verify_hint") }}</small></p>
     <label>{{ t("builder.instructions") }}
       <textarea name="instructions" rows="2">{{ form.instructions }}</textarea>
     </label>

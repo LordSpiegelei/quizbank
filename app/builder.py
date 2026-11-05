@@ -35,6 +35,7 @@ IMAGE_TYPES = {
 }
 QUESTION_TYPES = ("single", "multiple", "open")
 GENERATION_TEMPERATURE = 0.4  # below Ollama's default 0.8: fewer made-up facts
+CROSS_CHECK_TEMPERATURE = 0.0
 
 question_adapter = TypeAdapter(QuestionIn)
 
@@ -483,6 +484,67 @@ def outline(
         hint = f"That reply is unusable: {problem}. Reply again with valid JSON only."
         messages = [*messages, {"role": "user", "content": hint}]
     raise GenerationError(f"the LLM gave no usable outline ({problem})", [problem])
+
+
+def cross_check(
+    llm: LLMClient,
+    model: str,
+    material: Material,
+    questions: list[dict[str, Any]],
+    on_text: OnText | None = None,
+) -> dict[str, list[int]]:
+    """Let the model answer the choice questions without seeing the key; returns its answer
+    for every question where it differs from the key (to flag, not to drop). Raises LLMError
+    when the check itself fails."""
+    choice = [q for q in questions if q["type"] != "open"]
+    if not choice:
+        return {}
+    prompt = render_prompt(
+        "cross_check.txt",
+        questions=choice,
+        material=material.text,
+    )
+    schema = {
+        "type": "object",
+        "properties": {
+            "answers": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "id": {"type": "string", "enum": [q["id"] for q in choice]},
+                        "correct": {"type": "array", "items": {"type": "integer"}},
+                    },
+                    "required": ["id", "correct"],
+                },
+            }
+        },
+        "required": ["answers"],
+    }
+    reply = llm.chat(
+        model,
+        [_user_message(prompt, material.images)],
+        schema,
+        reserve_tokens=200 + 50 * len(choice),
+        on_text=on_text,
+        temperature=CROSS_CHECK_TEMPERATURE,
+    )
+    answers = reply.get("answers") if isinstance(reply, dict) else None
+    if not isinstance(answers, list):
+        raise LLMReplyError("the cross-check reply has no answers")
+    keys = {q["id"]: q for q in choice}
+    flags: dict[str, list[int]] = {}
+    for answer in answers:
+        if not isinstance(answer, dict) or answer.get("id") not in keys:
+            continue
+        picked = answer.get("correct")
+        if not isinstance(picked, list) or not all(isinstance(i, int) for i in picked):
+            continue
+        question = keys[answer["id"]]
+        chosen = sorted({i for i in picked if 0 <= i < len(question["options"])})
+        if chosen != sorted(question["correct"]):
+            flags[question["id"]] = chosen
+    return flags
 
 
 def load_images(directory: Path, names: list[str]) -> list[tuple[str, bytes]]:

@@ -656,3 +656,82 @@ def test_single_topic_outline_is_accepted_on_second_try(llm_client) -> None:
     llm_client.app.state.llm = FakeLLM(same, same, reply(*["single"] * 5), reply("single", start=6))
     create(llm_client, single="", multiple="0", open="0", options="")
     assert job_of(llm_client).status == "done"
+
+
+def answers(**picked: list[int]) -> dict:
+    return {"answers": [{"id": qid.replace("_", "-"), "correct": c} for qid, c in picked.items()]}
+
+
+def _checked_draft(llm_client, *extra) -> FakeLLM:
+    llm = llm_client.app.state.llm = FakeLLM(
+        reply("single", "single"), answers(ai_1_001=[1], ai_1_002=[3]), *extra
+    )
+    create(llm_client, single="2", multiple="0", open="0", verify="1")
+    return llm
+
+
+def test_cross_check_flags_disagreeing_answer_keys(llm_client) -> None:
+    llm = _checked_draft(llm_client)
+    job = job_of(llm_client)
+    assert job.status == "done" and job.flags == {"ai-1-002": [3]}
+    check = llm.calls[1]
+    assert check["temperature"] == 0.0 and "weil" not in check["prompt"]  # no explanations
+    assert check["schema"]["properties"]["answers"]["items"]["properties"]["id"]["enum"] == [
+        "ai-1-001",
+        "ai-1-002",
+    ]
+    assert any(e["text"] == "Cross-check: 1 of 2 disagreed" for e in job.log)
+    page = llm_client.get("/builder/drafts/1").text
+    assert "wählte das Modell D, die Lösung sagt B" in page
+    assert "1 Frage zum Prüfen markiert" in page
+
+
+def test_cross_check_failure_is_only_a_warning(llm_client) -> None:
+    llm_client.app.state.llm = FakeLLM(reply("single"), LLMError("cannot reach the LLM"))
+    create(llm_client, single="1", multiple="0", open="0", verify="1")
+    job = job_of(llm_client)
+    assert job.status == "done" and job.flags == {} and len(job.draft["questions"]) == 1
+    assert any(e["kind"] == "warning" and "Cross-check failed" in e["text"] for e in job.log)
+
+
+def test_no_cross_check_without_checkbox(llm_client) -> None:
+    llm = llm_client.app.state.llm = FakeLLM(reply("single", "single"))
+    create(llm_client, single="2", multiple="0", open="0")
+    assert len(llm.calls) == 1 and job_of(llm_client).flags == {}
+
+
+def test_open_questions_are_not_cross_checked(llm_client) -> None:
+    llm = llm_client.app.state.llm = FakeLLM(reply("open"))
+    create(llm_client, single="0", multiple="0", open="1", verify="1")
+    assert len(llm.calls) == 1
+
+
+def test_edit_and_drop_clear_flags(llm_client) -> None:
+    _checked_draft(llm_client)
+    edited = question("single", 2) | {"question": "Ganz neu formuliert: Paging?"}
+    llm_client.post(
+        "/builder/drafts/1/questions/ai-1-002/edit",
+        data={"json": json.dumps(edited)},
+        follow_redirects=False,
+    )
+    assert job_of(llm_client).flags == {}
+
+
+def test_regenerate_rechecks_the_new_question(llm_client) -> None:
+    _checked_draft(llm_client, reply("single", start=9), answers(ai_1_002=[1]))
+    llm_client.post("/builder/drafts/1/questions/ai-1-002/regenerate", follow_redirects=False)
+    assert job_of(llm_client).flags == {}  # the new key agrees with the check
+
+
+def test_cross_check_ignores_out_of_range_indices() -> None:
+    from app.builder import Material, cross_check
+
+    q = question("single") | {"id": "x"}
+    llm = FakeLLM({"answers": [{"id": "x", "correct": [1, 7, -1]}, {"id": "nope", "correct": [0]}]})
+    assert cross_check(llm, "m", Material(), [q]) == {}
+
+
+def test_verify_checkbox_defaults_on_and_keeps_choice_on_errors(llm_client) -> None:
+    assert 'name="verify" value="1" checked' in llm_client.get("/builder").text
+    page = create(llm_client, title="").text
+    assert 'name="verify" value="1" >' in page or 'name="verify" value="1">' in page

@@ -41,7 +41,7 @@ from app.templating import redirect, render
 router = APIRouter()
 LlmDep = Annotated[LLMClient, Depends(get_llm)]
 
-DEFAULT_FORM: dict[str, str] = {}  # blank fields: the AI decides
+DEFAULT_FORM: dict[str, str] = {"verify": "1"}  # blank counts: the AI decides
 
 
 def get_jobs(request: Request) -> JobRunner:
@@ -160,6 +160,7 @@ def _parse_params(session: Session, form: dict[str, str], app_lang: str) -> dict
         if scoring in ("all_or_nothing", "partial")
         else "all_or_nothing",
         "instructions": form["instructions"].strip(),
+        "verify": form["verify"] == "1",
         # With everything fixed the plan is known now; otherwise the job outlines it first.
         "plan": plan_slots(plan_types(*counts.values())) if total == fixed else None,
     }
@@ -182,6 +183,7 @@ FORM_FIELDS = [
     "instructions",
     "material",
     "model",
+    "verify",
 ]
 
 
@@ -336,8 +338,12 @@ def draft_discard(request: Request, session: SessionDep, llm: LlmDep, job_id: in
     return redirect(request, "builder_form")
 
 
-def _replace_questions(session: Session, job: GenerationJob, questions: list[dict]) -> None:
+def _replace_questions(
+    session: Session, job: GenerationJob, questions: list[dict], changed: str
+) -> None:
+    """Store the draft's questions; `changed` loses its cross-check flag (edited or dropped)."""
     job.draft = {**(job.draft or {}), "questions": questions}
+    job.flags = {k: v for k, v in job.flags.items() if k != changed}
     job.progress = len(questions)
     session.add(job)
     session.commit()
@@ -349,7 +355,7 @@ def question_drop(
 ):
     job = _idle_job(session, job_id)
     questions = [q for q in (job.draft or {}).get("questions", []) if q["id"] != question_id]
-    _replace_questions(session, job, questions)
+    _replace_questions(session, job, questions, question_id)
     return _back(request, job_id)
 
 
@@ -389,7 +395,7 @@ def question_edit(
         errors = [str(exc)]
     else:
         questions[index] = question.model_dump(mode="json", exclude_none=True)
-        _replace_questions(session, job, questions)
+        _replace_questions(session, job, questions, question_id)
         return redirect(request, "draft_page", fragment=f"q-{question_id}", job_id=job_id)
     return _draft_page(
         request,

@@ -43,6 +43,7 @@
     {% endif %}
     {% if questions and not job.regenerating %}
     <form method="post" action="{{ path('draft_import', job_id=job.id) }}"><button>{{ icon("check") }}{{ t("draft.import") }}</button></form>
+    {% if job.flags %}<span class="flag-count">{{ t("draft.flag_count", n=job.flags | length) }}</span>{% endif %}
     {% endif %}
   {% endif %}
   <form method="post" action="{{ path('draft_discard', job_id=job.id) }}" data-confirm="{{ t('draft.discard_confirm') }}" onsubmit="return confirm(this.dataset.confirm)">
@@ -58,6 +59,12 @@
     <span class="q-pos">{{ t("quiz.question") }} {{ loop.index }}</span>
     <mark class="status">{{ t("builder." ~ q.type) }}</mark>
     <small class="muted">{{ q.topic }} · {{ t("common.points", n=(q.points | default(1)) | num) }}</small>
+    {% if q.id in job.flags %}
+    {% set picked %}{% for i in job.flags[q.id] %}{{ letters[i] }}{{ ", " if not loop.last }}{% endfor %}{% endset %}
+    {% set expected %}{% for i in q.correct %}{{ letters[i] }}{{ ", " if not loop.last }}{% endfor %}{% endset %}
+    <mark class="status flagged" title="{{ t('draft.flag_note', picked=picked or '–', expected=expected) }}">{{ t("draft.flagged") }}</mark>
+    <small class="flag-note">{{ t("draft.flag_note", picked=picked or "–", expected=expected) }}</small>
+    {% endif %}
     <span class="q-tools">
       {% if regenerating %}<span class="muted">{{ t("draft.regenerating") }}</span>
       {% elif not job.busy %}
