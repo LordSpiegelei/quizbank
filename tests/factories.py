@@ -80,9 +80,25 @@ class FakeLLM:
 
         return ModelInfo(self.vision, self.context_tokens)
 
-    def chat(self, model, messages, json_schema=None, reserve_tokens=2048, on_text=None):
+    def chat(
+        self,
+        model,
+        messages,
+        json_schema=None,
+        reserve_tokens=2048,
+        on_text=None,
+        temperature=None,
+    ):
         self.calls.append(
-            {"model": model, "messages": messages, "schema": json_schema, "reserve": reserve_tokens}
+            {
+                "model": model,
+                "messages": messages,
+                "schema": json_schema,
+                "reserve": reserve_tokens,
+                "temperature": temperature,
+                # the first user message: the prompt (later ones are repair hints)
+                "prompt": next((m["content"] for m in messages if m["role"] == "user"), ""),
+            }
         )
         reply = self.replies.pop(0)
         if on_text is not None:

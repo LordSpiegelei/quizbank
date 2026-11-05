@@ -122,7 +122,7 @@ def _number(raw: str, kind: type, default: int | float | None = None) -> Any:
     return default if value is None else value
 
 
-def _parse_params(session: Session, form: dict[str, str]) -> dict[str, Any]:
+def _parse_params(session: Session, form: dict[str, str], app_lang: str) -> dict[str, Any]:
     """The generation parameters from the builder form; raises FormError."""
     course = form["course_new"].strip() or form["course_choice"].strip()
     if not course:
@@ -153,7 +153,7 @@ def _parse_params(session: Session, form: dict[str, str]) -> dict[str, Any]:
         "total": total,
         "options": options,
         "topics": [line.strip() for line in form["topics"].splitlines() if line.strip()],
-        "language": form["language"].strip() or "en",
+        "language": form["language"].strip() or app_lang,
         "time_limit_minutes": _number(form["time_limit"], int) or None,
         "pass_mark": _number(form["pass_mark"], float),
         "multiple_scoring": scoring
@@ -199,7 +199,7 @@ def _create_job(
     try:
         if not model:
             raise FormError("ai.no_model")
-        params = _parse_params(session, form)
+        params = _parse_params(session, form, request.app.state.settings.app_lang)
         info = llm.model_info(model)
         source = read_material(form["material"], uploads, info, model)
         check_context(source, _total(params), info)

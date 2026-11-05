@@ -12,8 +12,8 @@ from typing import Any
 from pydantic import TypeAdapter, ValidationError
 
 from app.llm import LLMClient, LLMError, LLMReplyError, ModelInfo, OnText, estimate_tokens
-from app.prompts import language_name, render_prompt
-from app.schemas import QUESTION_FIELDS, QuestionIn
+from app.prompts import language_name, language_rule, render_prompt, system_message
+from app.schemas import MAX_OPTIONS, MIN_OPTIONS, QUESTION_FIELDS, QuestionIn
 
 BATCH_SIZE = 5  # questions per LLM call
 MAX_QUESTIONS = 100
@@ -32,6 +32,7 @@ IMAGE_TYPES = {
     ".webp": "image/webp",
 }
 QUESTION_TYPES = ("single", "multiple", "open")
+GENERATION_TEMPERATURE = 0.4  # below Ollama's default 0.8: fewer made-up facts
 
 question_adapter = TypeAdapter(QuestionIn)
 
@@ -115,46 +116,56 @@ def plan_slots(types: list[str], topic: str | None = None) -> list[dict[str, Any
     return [{"type": kind, "topic": topic} for kind in types]
 
 
-def question_schema(slots: list[dict[str, Any]]) -> dict[str, Any]:
-    """One flat schema for all types (union schemas are poorly supported by local servers);
-    `accept_batch` keeps only the fields of each question's own type. Count and types are
-    limited to the batch, so a constrained server cannot run away with extra questions."""
+def question_schema(
+    slots: list[dict[str, Any]], options: int | None, with_source: bool
+) -> dict[str, Any]:
+    """Schema for one batch. Batches hold one question type, so every field that type needs
+    is required here: a server that enforces the schema cannot leave out model answers or
+    explanations, nor return extra questions or other types."""
+    kind = slots[0]["type"]
     text = {"type": "string"}
-    kinds = [kind for kind in QUESTION_TYPES if any(s["type"] == kind for s in slots)]
-    return {
-        "type": "object",
-        "properties": {
-            "questions": {
+    words = {"type": "array", "items": text, "maxItems": 3}
+    if kind == "open":
+        properties: dict[str, Any] = {
+            "type": {"type": "string", "enum": ["open"]},
+            "topic": text,
+            "tags": words,
+            "scenario": text,
+            "question": text,
+            "points": {"type": "number"},
+            "model_answer": text,
+            "rubric": {
                 "type": "array",
-                "maxItems": len(slots),
+                "minItems": 1,
                 "items": {
                     "type": "object",
-                    "properties": {
-                        "type": {"type": "string", "enum": kinds},
-                        "topic": text,
-                        "tags": {"type": "array", "items": text},
-                        "source": text,
-                        "scenario": text,
-                        "question": text,
-                        "points": {"type": "number"},
-                        "options": {"type": "array", "items": text},
-                        "correct": {"type": "array", "items": {"type": "integer"}},
-                        "explanation": text,
-                        "option_explanations": {"type": "array", "items": text},
-                        "model_answer": text,
-                        "rubric": {
-                            "type": "array",
-                            "items": {
-                                "type": "object",
-                                "properties": {"criterion": text, "points": {"type": "number"}},
-                                "required": ["criterion", "points"],
-                            },
-                        },
-                    },
-                    "required": ["type", "topic", "question"],
+                    "properties": {"criterion": text, "points": {"type": "number"}},
+                    "required": ["criterion", "points"],
                 },
-            }
-        },
+            },
+        }
+    else:
+        low, high = (options, options) if options else (MIN_OPTIONS, MAX_OPTIONS)
+        choices = {"type": "array", "items": text, "minItems": low, "maxItems": high}
+        correct: dict[str, Any] = {"type": "array", "items": {"type": "integer"}, "minItems": 1}
+        if kind == "single":
+            correct["maxItems"] = 1
+        properties = {
+            "type": {"type": "string", "enum": [kind]},
+            "topic": text,
+            "tags": words,
+            "question": text,
+            "options": choices,
+            "correct": correct,
+            "explanation": text,
+            "option_explanations": choices,
+        }
+    if with_source:
+        properties["source"] = text
+    item = {"type": "object", "properties": properties, "required": list(properties)}
+    return {
+        "type": "object",
+        "properties": {"questions": {"type": "array", "maxItems": len(slots), "items": item}},
         "required": ["questions"],
     }
 
@@ -189,6 +200,12 @@ def accept_batch(
             question = question_adapter.validate_python(data | {"id": "new"})
         except ValidationError as exc:
             problems.append(f"questions[{n}]: {_error_lines(exc)}")
+            continue
+        if kind == "open" and not question.model_answer:
+            problems.append(f"questions[{n}]: model_answer is missing")
+            continue
+        if kind != "open" and not question.explanation:
+            problems.append(f"questions[{n}]: explanation is missing")
             continue
         choices = getattr(question, "options", None)
         if options and choices is not None and len(choices) != options:
@@ -245,8 +262,10 @@ def generate_batch(
         material=material.text,
         images=material.images,
         language=language_name(params["language"]),
+        language_rule=language_rule(params["language"]),
     )
-    messages = [_user_message(prompt, material.images)]
+    messages = [system_message(params["language"]), _user_message(prompt, material.images)]
+    schema = question_schema(slots, params.get("options"), with_source=bool(material.text))
     problems: list[str] = []
     for _ in range(2):
         reply = None
@@ -254,9 +273,10 @@ def generate_batch(
             reply = llm.chat(
                 model,
                 messages,
-                question_schema(slots),
+                schema,
                 reserve_tokens=output_reserve(len(slots)),
                 on_text=on_text,
+                temperature=GENERATION_TEMPERATURE,
             )
             filled, problems = accept_batch(reply, slots, params.get("options"), ids)
         except (LLMReplyError, ValueError) as exc:
@@ -356,7 +376,8 @@ def outline(
         material=material.text,
         images=material.images,
     )
-    messages = [_user_message(prompt, material.images)]
+    language = params.get("language") or "en"
+    messages = [system_message(language), _user_message(prompt, material.images)]
     problem = ""
     for _ in range(2):
         reply = None
@@ -367,6 +388,7 @@ def outline(
                 outline_schema(counts, total),
                 reserve_tokens=4096,
                 on_text=on_text,
+                temperature=GENERATION_TEMPERATURE,
             )
             return normalize_outline(reply, counts, total)
         except (LLMReplyError, ValueError) as exc:

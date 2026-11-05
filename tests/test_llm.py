@@ -266,3 +266,26 @@ def test_stream_unreachable_raises_llm_error():
 
     with pytest.raises(LLMError, match="cannot reach"):
         make_client(handler).chat("m", [], on_text=lambda k, t: None)
+
+
+def test_temperature_is_sent_on_both_apis():
+    seen = []
+    make_client(ollama_server(seen, content="hi")).chat("m", [], temperature=0.3)
+    assert seen[0][1]["options"]["temperature"] == 0.3
+
+    bodies = []
+
+    def handler(request):
+        bodies.append(json.loads(request.content))
+        return chat_reply("hi")
+
+    make_client(openai_only(handler)).chat("m", [], temperature=0.3)
+    assert bodies[0]["temperature"] == 0.3
+
+
+def test_language_rules():
+    from app.prompts import language_name, language_rule
+
+    assert "Deutsch" in language_rule("de") and language_rule("Deutsch") == language_rule("de")
+    assert language_name("German") == "German" and language_name("de") == "German"
+    assert language_rule("fr") == "Write every text in fr only."

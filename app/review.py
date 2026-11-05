@@ -8,8 +8,10 @@ from sqlmodel import Session
 
 from app.llm import LLMClient, LLMReplyError, OnText
 from app.models import Answer, Attempt, utcnow
-from app.prompts import language_name, render_prompt
+from app.prompts import language_name, language_rule, render_prompt, system_message
 from app.scoring import needs_review, self_score_from
+
+REVIEW_TEMPERATURE = 0.2
 
 
 def review_schema(count: int) -> dict[str, Any]:
@@ -77,11 +79,21 @@ def ai_review(
         answer=(answer.text_answer or "").strip(),
         count=len(limits),
         language=language_name(language),
+        language_rule=language_rule(language),
     )
-    messages: list[dict[str, Any]] = [{"role": "user", "content": prompt}]
+    messages: list[dict[str, Any]] = [
+        system_message(language),
+        {"role": "user", "content": prompt},
+    ]
     for attempt_no in range(2):
         try:
-            reply = llm.chat(model, messages, review_schema(len(limits)), on_text=on_text)
+            reply = llm.chat(
+                model,
+                messages,
+                review_schema(len(limits)),
+                on_text=on_text,
+                temperature=REVIEW_TEMPERATURE,
+            )
             scores, feedback = parse_review(reply, limits)
             break
         except (ValueError, LLMReplyError) as exc:

@@ -33,6 +33,18 @@ def reply(*kinds: str, start: int = 1) -> dict:
 FIVE = ("single", "single", "single", "multiple", "open")
 
 
+def per_type(*kinds: str) -> list[dict]:
+    """Replies in the order the runner asks: one type per batch, single → multiple → open."""
+    replies, n = [], 1
+    for kind in ("single", "multiple", "open"):
+        mine = [k for k in kinds if k == kind]
+        for i in range(0, len(mine), 5):
+            chunk = mine[i : i + 5]
+            replies.append(reply(*chunk, start=n))
+            n += len(chunk)
+    return replies
+
+
 def create(client, files=None, **overrides):
     return client.post(
         "/builder", data=FORM | overrides, files=files or None, follow_redirects=False
@@ -63,7 +75,7 @@ def test_builder_page_when_llm_down(llm_client) -> None:
 
 
 def test_generates_draft_and_imports_it(llm_client) -> None:
-    llm = llm_client.app.state.llm = FakeLLM(reply(*FIVE))
+    llm = llm_client.app.state.llm = FakeLLM(*per_type(*FIVE))
     response = create(llm_client, time_limit="30", pass_mark="3,5", multiple_scoring="partial")
     assert response.status_code == 303 and response.headers["location"] == "/builder/drafts/1"
 
@@ -100,24 +112,22 @@ def test_generates_in_batches_and_avoids_repeats(llm_client) -> None:
     assert job.status == "done" and len(job.draft["questions"]) == 7
     assert [q["id"] for q in job.draft["questions"]][-1] == "ai-1-007"
     assert len(llm.calls) == 2
-    second = llm.calls[1]["messages"][0]["content"]
+    second = llm.calls[1]["prompt"]
     assert "Frage single 1?" in second and "Do not repeat" in second
 
 
 def test_partial_reply_is_kept_and_rest_follows(llm_client) -> None:
     llm = llm_client.app.state.llm = FakeLLM(
-        reply("single"), reply("single", "single", "multiple", "open")
+        reply("single"),
+        reply("single", "single", start=2),
+        reply("multiple", start=4),
+        reply("open", start=5),
     )
     create(llm_client)
     job = job_of(llm_client)
-    assert job.status == "done" and len(job.draft["questions"]) == 5 and len(llm.calls) == 2
+    assert job.status == "done" and len(job.draft["questions"]) == 5 and len(llm.calls) == 4
     assert [q["id"] for q in job.draft["questions"]] == [f"ai-1-{n:03}" for n in range(1, 6)]
-    assert (
-        len(
-            llm.calls[1]["schema"]["properties"]["questions"]["items"]["properties"]["type"]["enum"]
-        )
-        == 3
-    )
+    assert [len(c["schema"]["properties"]["questions"]["items"]["required"]) > 5 for c in llm.calls]
 
 
 def test_oversized_reply_is_trimmed(llm_client) -> None:
@@ -128,9 +138,11 @@ def test_oversized_reply_is_trimmed(llm_client) -> None:
 
 
 def test_repair_retry_only_when_nothing_is_usable(llm_client) -> None:
-    llm = llm_client.app.state.llm = FakeLLM(reply("open"), reply(*FIVE))
+    llm = llm_client.app.state.llm = FakeLLM(
+        reply("open"), reply("single", "single", "single"), reply("multiple", start=4)
+    )
     create(llm_client, single="3", multiple="1", open="0")
-    assert job_of(llm_client).status == "done" and len(llm.calls) == 2
+    assert job_of(llm_client).status == "done" and len(llm.calls) == 3
     last = llm.calls[1]["messages"][-1]["content"]
     assert "unusable" in last and "missing" in last
 
@@ -173,7 +185,7 @@ def test_cancel_between_batches(llm_client) -> None:
 
 
 def test_validation_of_form(llm_client) -> None:
-    llm_client.app.state.llm = FakeLLM(reply(*FIVE))
+    llm_client.app.state.llm = FakeLLM(*per_type(*FIVE))
     assert create(llm_client, title="").status_code == 422
     assert create(llm_client, course_new="").status_code == 422
     assert create(llm_client, single="0", multiple="0", open="0").status_code == 422
@@ -191,13 +203,13 @@ def test_existing_exam_title_is_refused(llm_client) -> None:
 
 
 def test_text_files_are_part_of_the_prompt(llm_client) -> None:
-    llm = llm_client.app.state.llm = FakeLLM(reply(*FIVE))
+    llm = llm_client.app.state.llm = FakeLLM(*per_type(*FIVE))
     create(
         llm_client,
         files=[("files", ("notes.md", "Äpfel sind Obst".encode(), "text/markdown"))],
         material="Eingefügter Text",
     )
-    prompt = llm.calls[0]["messages"][0]["content"]
+    prompt = llm.calls[0]["prompt"]
     assert "Äpfel sind Obst" in prompt and "### notes.md" in prompt and "Eingefügter Text" in prompt
 
 
@@ -211,7 +223,7 @@ def test_text_files_are_part_of_the_prompt(llm_client) -> None:
     ],
 )
 def test_unusable_files_are_refused(llm_client, name, content, message) -> None:
-    llm = llm_client.app.state.llm = FakeLLM(reply(*FIVE))
+    llm = llm_client.app.state.llm = FakeLLM(*per_type(*FIVE))
     response = create(llm_client, files=[("files", (name, content, "application/octet-stream"))])
     assert response.status_code == 422 and message in response.text
     assert llm.calls == []
@@ -219,9 +231,9 @@ def test_unusable_files_are_refused(llm_client, name, content, message) -> None:
 
 
 def test_images_need_vision_and_are_sent_then_cleaned_up(llm_client, settings) -> None:
-    llm = llm_client.app.state.llm = FakeLLM(reply(*FIVE), vision=True)
+    llm = llm_client.app.state.llm = FakeLLM(*per_type(*FIVE), vision=True)
     create(llm_client, files=[("files", ("pic.png", b"\x89PNGdata", "image/png"))])
-    parts = llm.calls[0]["messages"][0]["content"]
+    parts = llm.calls[0]["messages"][1]["content"]
     assert parts[0]["type"] == "text" and parts[1]["image_url"]["url"].startswith("data:image/png")
     folder = drafts_dir(settings.db_path) / "1"
     assert (folder / "img0.png").is_file()
@@ -231,14 +243,14 @@ def test_images_need_vision_and_are_sent_then_cleaned_up(llm_client, settings) -
 
 
 def test_material_over_context_is_refused(llm_client) -> None:
-    llm = llm_client.app.state.llm = FakeLLM(reply(*FIVE), context_tokens=2000)
+    llm = llm_client.app.state.llm = FakeLLM(*per_type(*FIVE), context_tokens=2000)
     response = create(llm_client, material="x" * 20000)
     assert response.status_code == 422 and "passt nicht" in response.text
     assert llm.calls == []
 
 
 def _draft(llm_client, *kinds: str) -> FakeLLM:
-    llm = llm_client.app.state.llm = FakeLLM(reply(*kinds))
+    llm = llm_client.app.state.llm = FakeLLM(*per_type(*kinds))
     n = {k: kinds.count(k) for k in ("single", "multiple", "open")}
     create(llm_client, **{k: str(v) for k, v in n.items()})
     return llm
@@ -254,7 +266,7 @@ def test_regenerate_keeps_id_type_topic_and_position(llm_client) -> None:
     assert [q["id"] for q in questions] == ["ai-1-001", "ai-1-002", "ai-1-003"]
     assert questions[1]["question"] == "Frage multiple 9?" and questions[1]["topic"] == "Thema"
     assert job.regenerating == []
-    prompt = llm.calls[-1]["messages"][0]["content"]
+    prompt = llm.calls[-1]["prompt"]
     assert 'topic "Thema"' in prompt and "Frage single 1?" in prompt
     assert "Frage multiple 2?" not in prompt  # the replaced question is not in the avoid list
 
@@ -369,8 +381,11 @@ def test_accept_batch_rejects_non_list() -> None:
 
 
 def test_schema_limits_count_and_types() -> None:
-    schema = question_schema(plan_slots(["open", "open"]))["properties"]["questions"]
+    schema = question_schema(plan_slots(["open", "open"]), None, False)["properties"]["questions"]
     assert schema["maxItems"] == 2 and schema["items"]["properties"]["type"]["enum"] == ["open"]
+    required = schema["items"]["required"]
+    assert {"scenario", "model_answer", "rubric", "points"} <= set(required)
+    assert "source" not in required and "options" not in required
 
 
 def test_plan_types_orders_by_type() -> None:
@@ -394,23 +409,24 @@ def outline_reply(*kinds: str, topic: str = "Thema") -> dict:
 
 def test_free_mode_outlines_then_generates(llm_client) -> None:
     llm = llm_client.app.state.llm = FakeLLM(
-        outline_reply("open", "single", "single"), reply("single", "single", "open")
+        outline_reply("open", "single", "single"), reply("single", "single"), reply("open", start=3)
     )
     create(llm_client, single="", multiple="", open="", options="")
     job = job_of(llm_client)
     assert job.status == "done" and job.total == 3
     assert [q["type"] for q in job.draft["questions"]] == ["single", "single", "open"]
     first = llm.calls[0]
-    assert "Do not write the questions yet" in first["messages"][0]["content"]
+    assert "Do not write the questions yet" in first["prompt"]
     assert first["schema"]["properties"]["questions"]["maxItems"] == 100
-    assert "2-10 (as the question needs)" in llm.calls[1]["messages"][0]["content"]
+    assert "2-10 (as the question needs)" in llm.calls[1]["prompt"]
 
 
 def test_free_mode_with_fixed_total_and_one_fixed_type(llm_client) -> None:
     # the outline ignores the rules: 1 open instead of 2, plus an excluded multiple
     llm = llm_client.app.state.llm = FakeLLM(
         outline_reply("open", "multiple", "single", "single", "single", "single"),
-        reply("single", "single", "single", "open", "open"),
+        reply("single", "single", "single"),
+        reply("open", "open", start=4),
     )
     create(llm_client, single="", multiple="0", open="2", total="5")
     job = job_of(llm_client)
@@ -434,13 +450,13 @@ def test_total_below_fixed_counts_is_refused(llm_client) -> None:
 
 
 def test_all_fixed_needs_no_outline(llm_client) -> None:
-    llm = llm_client.app.state.llm = FakeLLM(reply(*FIVE))
+    llm = llm_client.app.state.llm = FakeLLM(*per_type(*FIVE))
     create(llm_client, total="99")  # ignored: every type is fixed
-    assert job_of(llm_client).total == 5 and len(llm.calls) == 1
+    assert job_of(llm_client).total == 5 and len(llm.calls) == 3  # one call per type
 
 
 def test_old_draft_params_are_migrated_on_resume(llm_client) -> None:
-    llm = llm_client.app.state.llm = FakeLLM(reply("single", "open"))
+    llm = llm_client.app.state.llm = FakeLLM(reply("single"), reply("open", start=2))
     params = {
         "course": "Kurs", "title": "Alt", "single": 1, "multiple": 0, "open": 1,
         "options": 4, "language": "de",
@@ -450,7 +466,7 @@ def test_old_draft_params_are_migrated_on_resume(llm_client) -> None:
         session.commit()
     llm_client.post("/builder/drafts/1/retry", follow_redirects=False)
     job = job_of(llm_client)
-    assert job.status == "done" and len(job.draft["questions"]) == 2 and len(llm.calls) == 1
+    assert job.status == "done" and len(job.draft["questions"]) == 2 and len(llm.calls) == 2
 
 
 def test_job_log_records_steps_and_live_output(llm_client) -> None:
@@ -499,3 +515,39 @@ def test_job_log_caps_live_text(llm_client) -> None:
     live = job_of(llm_client).live
     assert sum(len(seg["text"]) for seg in live) == JobLog.MAX_LIVE_CHARS
     assert live[-1] == {"kind": "thinking", "text": "b" * 5000}
+
+
+def test_choice_schema_bounds_options_and_single_correct() -> None:
+    single_items = question_schema(plan_slots(["single"]), 4, True)["properties"]["questions"][
+        "items"
+    ]
+    props = single_items["properties"]
+    assert props["options"]["minItems"] == props["options"]["maxItems"] == 4
+    assert props["correct"]["maxItems"] == 1 and "source" in single_items["required"]
+    assert {"explanation", "option_explanations"} <= set(single_items["required"])
+    free = question_schema(plan_slots(["multiple"]), None, False)["properties"]["questions"]
+    assert free["items"]["properties"]["options"]["minItems"] == 2
+    assert "maxItems" not in free["items"]["properties"]["correct"]
+
+
+def test_batches_hold_one_type_and_send_language_and_temperature(llm_client) -> None:
+    llm = llm_client.app.state.llm = FakeLLM(*per_type(*FIVE))
+    create(llm_client)
+    enums = [
+        c["schema"]["properties"]["questions"]["items"]["properties"]["type"]["enum"]
+        for c in llm.calls
+    ]
+    assert enums == [["single"], ["multiple"], ["open"]]
+    first = llm.calls[0]
+    assert first["messages"][0]["role"] == "system" and "Deutsch" in first["messages"][0]["content"]
+    assert first["prompt"].rstrip().endswith(first["messages"][0]["content"])
+    assert first["temperature"] == 0.4
+
+
+def test_question_without_model_answer_or_explanation_is_rejected() -> None:
+    no_answer = question("open") | {"model_answer": ""}
+    filled, problems = accept_batch({"questions": [no_answer]}, plan_slots(["open"]), None, ["a"])
+    assert filled == [] and "model_answer is missing" in problems[0]
+    no_why = question("single") | {"explanation": ""}
+    filled, problems = accept_batch({"questions": [no_why]}, plan_slots(["single"]), None, ["a"])
+    assert filled == [] and "explanation is missing" in problems[0]

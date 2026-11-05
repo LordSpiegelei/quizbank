@@ -176,6 +176,7 @@ class LLMClient:
         json_schema: dict[str, Any] | None = None,
         reserve_tokens: int = 2048,
         on_text: OnText | None = None,
+        temperature: float | None = None,
     ) -> Any:
         """One completion. With `json_schema` the reply is constrained to it and returned parsed.
         With `on_text` the reply is streamed and passed on as it arrives (see `OnText`).
@@ -194,12 +195,16 @@ class LLMClient:
                 "stream": stream,
                 "options": {"num_ctx": num_ctx},
             }
+            if temperature is not None:
+                body["options"]["temperature"] = temperature
             if json_schema is not None:
                 body["format"] = json_schema
             meta = f"{model} via Ollama /api/chat, num_ctx {num_ctx}"
         else:
             url = "/v1/chat/completions"
             body = {"model": model, "messages": messages, "stream": stream}
+            if temperature is not None:
+                body["temperature"] = temperature
             if json_schema is not None:
                 body["response_format"] = {
                     "type": "json_schema",

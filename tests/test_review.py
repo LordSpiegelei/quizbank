@@ -62,8 +62,10 @@ def test_ai_review_stores_suggestion_not_score(client) -> None:
     assert data["scores"] == [3, 5.5] and data["model"] == "other"
     assert "<strong>Gut</strong>" in data["feedback_html"]
     assert llm.calls[0]["model"] == "other"
-    assert "Meine Analyse" in llm.calls[0]["messages"][0]["content"]
-    assert "German" in llm.calls[0]["messages"][0]["content"]  # tests run with APP_LANG=de
+    assert "Meine Analyse" in llm.calls[0]["prompt"]
+    assert "German" in llm.calls[0]["prompt"]  # tests run with APP_LANG=de
+    assert llm.calls[0]["messages"][0]["role"] == "system"
+    assert llm.calls[0]["temperature"] == 0.2
     with db(client) as session:
         answer = session.get(Answer, answer_id)
         assert (answer.ai_scores, answer.ai_feedback, answer.ai_model) == (

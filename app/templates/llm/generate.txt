@@ -16,12 +16,14 @@ Write exactly {{ slots | length }} question{{ "s" if slots | length != 1 }}, one
 
 {% endfor %}
 Rules:
-- "type" is "single", "multiple" or "open".
-- "correct" holds 0-based indices into "options"; vary where the correct option sits. Make wrong options plausible (typical mistakes).
-- "explanation" says why the answer is right; for choice questions "option_explanations" has one entry per option.
-- "open" questions: "points" is 5-10, "rubric" lists criteria whose points add up to "points" at most, "model_answer" is a complete answer.
-- "tags": 1-3 keywords. "source": where in the material it comes from, if known.
-- Markdown is allowed in texts. Write all texts in {{ language }}.
+- Every question is self-contained: state all data, code or values it needs. Never refer to "the given …", "the above", "the material" or an exercise number in the question text.
+- Stay within the material: ask about what it covers, not about other topics.
+- "correct" holds 0-based indices into "options"; vary where the correct option sits. Make wrong options plausible (typical mistakes) but clearly wrong.
+- Options are plain texts without labels such as "A." or "1)". For single choice, exactly one option is correct; avoid "all of the above" and "none of the above".
+- "explanation" says why the answer is right; for choice questions "option_explanations" has one entry per option, consistent with "correct".
+- "open" questions: a "scenario" with the situation, "points" 5-10, a complete "model_answer", and a "rubric" whose points add up to "points" at most.
+- "tags": 1-3 keywords. "source": the part of the material the question is based on (e.g. "Aufgabe 3"), if material was given.
+- Markdown is allowed in texts.
 {% if slots | selectattr("topic") | list | length == slots | length %}
 - Use the topic given for each entry.
 {% elif topics %}
@@ -42,3 +44,4 @@ Do not repeat or closely paraphrase these existing questions:
 {% endif %}
 
 Reply with JSON only: {"questions": [ ... ]} with exactly {{ slots | length }} item{{ "s" if slots | length != 1 }}.
+{{ language_rule }}

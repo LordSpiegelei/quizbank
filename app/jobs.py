@@ -312,7 +312,11 @@ class JobRunner:
                     log.event("Cancelled")
                     return
             done = len(draft["questions"])
-            batch = remaining[:BATCH_SIZE]
+            # one question type per batch, so the schema can require all of its fields
+            kind = remaining[0]["type"]
+            positions = [i for i, slot in enumerate(remaining) if slot["type"] == kind]
+            positions = positions[:BATCH_SIZE]
+            batch = [remaining[i] for i in positions]
             log.event(
                 f"Writing {len(batch)} questions ({_type_summary(batch)}), {done} done so far"
             )
@@ -331,8 +335,8 @@ class JobRunner:
             log.event(f"Got {len(filled)} of {len(batch)} usable")
             for problem in problems[:5]:
                 log.event(problem, "warning")
-            taken = {index for index, _ in filled}
-            remaining = [s for i, s in enumerate(batch) if i not in taken] + remaining[BATCH_SIZE:]
+            taken = {positions[index] for index, _ in filled}
+            remaining = [slot for i, slot in enumerate(remaining) if i not in taken]
             draft = {**draft, "questions": [*draft["questions"], *(q for _, q in filled)]}
             params = {**params, "plan": remaining}
             self._set(job_id, draft=draft, params=params, progress=len(draft["questions"]))
