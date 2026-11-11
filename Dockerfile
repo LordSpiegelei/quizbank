@@ -1,4 +1,4 @@
-FROM python:3.12-slim AS builder
+FROM python:3.15-slim AS builder
 
 COPY --from=ghcr.io/astral-sh/uv:0.8 /uv /bin/uv
 ENV UV_COMPILE_BYTECODE=1 \
@@ -14,7 +14,7 @@ COPY migrations ./migrations
 COPY app ./app
 
 
-FROM python:3.12-slim
+FROM python:3.15-slim
 
 RUN useradd --create-home --uid 1000 quizbank \
     && mkdir -p /data /questions \
